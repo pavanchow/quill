@@ -1,0 +1,19 @@
+[package]
+name = "quill"
+version = "0.1.0"
+edition = "2021"
+authors = ["Pavan <pavankumarpre@gmail.com>"]
+description = "A dependency-free editable text buffer with a piece table, line indexing, cursors, undo/redo, and search."
+repository = "https://github.com/pavanchow/quill"
+license = "MIT"
+
+[[bin]]
+name = "quill"
+path = "src/bin/quill.rs"
+
+[lib]
+name = "quill"
+path = "src/lib.rs"
+
+[profile.release]
+opt-level = 3
