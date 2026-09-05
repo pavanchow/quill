@@ -1,12 +1,843 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>quill</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quill Playground</title>
+<style>
+:root {
+  --bg: #f5f5f7;
+  --panel: #ffffff;
+  --panel-2: #fbfbfd;
+  --text: #1d1d1f;
+  --muted: #6e6e73;
+  --accent: #0071e3;
+  --accent-text: #ffffff;
+  --border: #d2d2d7;
+  --sel: #a8d1ff;
+  --match: #ffd426;
+  --match-text: #1d1d1f;
+  --caret: #0071e3;
+  --add: #0a84ff;
+  --orig: #34c759;
+  --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Dark theme. This block sits AFTER the base body rule on purpose and it
+   re-declares BOTH the variables AND the body background, so a dark browser
+   never shows dark text on a white page. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #000000;
+    --panel: #1c1c1e;
+    --panel-2: #2c2c2e;
+    --text: #f5f5f7;
+    --muted: #98989d;
+    --accent: #0a84ff;
+    --accent-text: #ffffff;
+    --border: #38383a;
+    --sel: #0a4a8f;
+    --match: #8a6d00;
+    --match-text: #ffffff;
+    --caret: #0a84ff;
+    --add: #0a84ff;
+    --orig: #30d158;
+    --shadow: 0 1px 3px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.4);
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+  }
+}
+
+.wrap {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 48px 24px 80px;
+}
+
+header h1 {
+  font-size: 44px;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  margin: 0 0 8px;
+  font-weight: 700;
+}
+
+header .tag {
+  font-size: 20px;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+header a {
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+header a:hover { text-decoration: underline; }
+
+section {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 22px;
+  margin-top: 28px;
+}
+
+h2 {
+  font-size: 22px;
+  letter-spacing: -0.01em;
+  margin: 0 0 14px;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 10px;
+  font-weight: 600;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+button {
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.05s ease;
+}
+
+button:hover { background: var(--bg); }
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: default; }
+
+button.primary {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: transparent;
+}
+button.primary:hover { filter: brightness(1.05); }
+
+input[type="text"], input[type="search"] {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  padding: 8px 16px;
+  outline: none;
+  min-width: 220px;
+}
+input[type="text"]:focus, input[type="search"]:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+.editor {
+  font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, "Cascadia Code", Consolas, monospace;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 220px;
+  padding: 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  outline: none;
+  cursor: text;
+  overflow-wrap: anywhere;
+}
+.editor:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+
+.ch { position: relative; }
+.ch.sel { background: var(--sel); border-radius: 2px; }
+.ch.match { background: var(--match); color: var(--match-text); border-radius: 2px; }
+.ch.match.sel { box-shadow: inset 0 0 0 2px var(--accent); }
+.ch.nl.sel::before { content: "↵"; color: var(--muted); }
+
+.caret {
+  display: inline-block;
+  width: 0;
+  border-left: 2px solid var(--caret);
+  height: 1.15em;
+  margin: 0 -1px;
+  vertical-align: text-bottom;
+  animation: blink 1.05s steps(1) infinite;
+}
+.editor:focus .caret { animation: blink 1.05s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  margin-top: 14px;
+}
+.pill {
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 980px;
+  padding: 5px 12px;
+}
+.pill b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+@media (min-width: 860px) {
+  .layout { grid-template-columns: 1.3fr 1fr; }
+}
+
+.pieces {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 340px;
+  overflow: auto;
+}
+.piece {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12.5px;
+}
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 2px 8px;
+  border-radius: 980px;
+  color: #fff;
+  flex: none;
+}
+.badge.original { background: var(--orig); }
+.badge.add { background: var(--add); }
+.piece .range { color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
+.piece .txt { white-space: pre-wrap; word-break: break-word; color: var(--text); }
+.legend { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+
+.help ol { margin: 0 0 6px; padding-left: 22px; }
+.help li { margin: 6px 0; }
+.help code, .prose code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.88em;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.help .kbd {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  padding: 2px 7px;
+}
+.grid2 { display: grid; grid-template-columns: 1fr; gap: 18px; }
+@media (min-width: 720px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+.prose p { margin: 8px 0; }
+.muted { color: var(--muted); }
+footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 13px; }
+footer a { color: var(--accent); text-decoration: none; }
+</style>
 </head>
 <body>
-<h1>quill</h1>
-<p>Site coming soon.</p>
-<p><a href="https://github.com/pavanchow/quill">View repository</a></p>
+<div class="wrap">
+  <header>
+    <h1>Quill Playground</h1>
+    <p class="tag">A dependency-free text buffer, running in your browser.</p>
+    <a href="https://github.com/pavanchow/quill">github.com/pavanchow/quill</a>
+  </header>
+
+  <section>
+    <h2>Editor</h2>
+    <div class="toolbar">
+      <button id="undo">Undo</button>
+      <button id="redo">Redo</button>
+      <button id="clear">Clear</button>
+      <button id="reset">Reset sample</button>
+      <input id="search" type="search" placeholder="Search and highlight all matches" spellcheck="false" autocomplete="off">
+      <span class="pill">matches <b id="matchCount">0</b></span>
+    </div>
+
+    <div class="layout">
+      <div>
+        <div id="editor" class="editor" tabindex="0" spellcheck="false" aria-label="Quill editor surface"></div>
+        <div class="stats">
+          <span class="pill">Ln <b id="ln">1</b>, Col <b id="col">1</b></span>
+          <span class="pill">chars <b id="chars">0</b></span>
+          <span class="pill">lines <b id="lines">1</b></span>
+          <span class="pill">pieces <b id="pieceCount">0</b></span>
+          <span class="pill">selection <b id="selLen">0</b></span>
+        </div>
+      </div>
+
+      <div>
+        <h3>Piece table structure</h3>
+        <div id="pieces" class="pieces"></div>
+        <p class="legend">
+          <span class="badge original">original</span> the text you started with, immutable.
+          <span class="badge add">add</span> an append-only store every insert writes into.
+          Each piece points at a character range inside one store. This is the real
+          data model backing the editor above, not a textarea value.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="help">
+    <h2>How to use this playground</h2>
+    <div class="grid2">
+      <div>
+        <h3>Controls</h3>
+        <ol>
+          <li><b>Type</b> in the editor. Click to place the caret, drag is not needed, use <span class="kbd">Shift</span> with arrows to select.</li>
+          <li><b>Move</b> with <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> <span class="kbd">&uarr;</span> <span class="kbd">&darr;</span>, jump with <span class="kbd">Home</span> and <span class="kbd">End</span>.</li>
+          <li><b>Delete</b> with <span class="kbd">Backspace</span> or <span class="kbd">Delete</span>. Selecting first then typing replaces the selection.</li>
+          <li><b>Undo</b> with the Undo button or <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Z</span>. <b>Redo</b> with Redo or <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Shift</span>+<span class="kbd">Z</span>.</li>
+          <li><b>Search</b> in the box to highlight every match. The count updates live.</li>
+          <li><b>Clear</b> empties the buffer. <b>Reset sample</b> restores the starting text.</li>
+        </ol>
+      </div>
+      <div>
+        <h3>A short guided tour</h3>
+        <ol>
+          <li>Put the caret in the middle of a word and type. Watch a new <span class="badge add">add</span> piece appear and the original piece split in two.</li>
+          <li>Keep typing without moving. The trailing add piece just grows, because contiguous typing coalesces.</li>
+          <li>Press <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Z</span> once. A whole typed run is undone as one step, not one letter.</li>
+          <li>Type "the" into the search box. Every occurrence lights up and the match count shows how many.</li>
+          <li>Select a range and press a key to replace it, then undo to bring it back exactly.</li>
+        </ol>
+        <p class="muted">Line and column are shown 1-based here for readability. The Rust engine reports them 0-based.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="prose">
+    <h2>What is happening under the hood</h2>
+    <p>
+      The editor is backed by a <b>piece table</b>, the same data structure the Rust
+      crate uses. Two immutable character stores exist: <code>original</code> holds
+      the starting text and <code>add</code> is append-only. The visible document is
+      an ordered list of pieces, each pointing at a range inside one store.
+    </p>
+    <p>
+      An insert appends to <code>add</code> and splices in at most one new piece,
+      splitting a piece if the caret is inside it. A delete drops the pieces in the
+      range. Nothing large is ever rewritten, which is what makes edits on big
+      documents cheap. Undo and redo record the inverse of each change and replay it.
+    </p>
+    <p class="muted">
+      This page is one self-contained file with no frameworks and no external
+      resources apart from the link to the source repository.
+    </p>
+  </section>
+
+  <footer>
+    Quill, built from scratch in Rust. Source at
+    <a href="https://github.com/pavanchow/quill">github.com/pavanchow/quill</a>.
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+// A code-point array of a string, so offsets match the Rust engine's char
+// offsets (Unicode scalar values), not UTF-16 code units.
+function cps(s) { return Array.from(s); }
+
+// Teaching-accurate piece table. Stores hold arrays of code points; pieces point
+// at a range inside one store. This mirrors the Rust PieceTable one to one.
+class PieceTable {
+  constructor(text) {
+    this.original = cps(text);
+    this.add = [];
+    this.pieces = [];
+    if (this.original.length) {
+      this.pieces.push({ source: "original", start: 0, len: this.original.length });
+    }
+  }
+  store(source) { return source === "original" ? this.original : this.add; }
+  get length() { return this.pieces.reduce((a, p) => a + p.len, 0); }
+  contents() {
+    let out = [];
+    for (const p of this.pieces) {
+      const s = this.store(p.source);
+      for (let i = p.start; i < p.start + p.len; i++) out.push(s[i]);
+    }
+    return out.join("");
+  }
+  // Ensure a boundary exists at char offset pos, returning its piece index.
+  splitAt(pos) {
+    if (pos === 0) return 0;
+    let acc = 0;
+    for (let i = 0; i < this.pieces.length; i++) {
+      const c = this.pieces[i].len;
+      if (acc + c === pos) return i + 1;
+      if (acc + c > pos) {
+        const k = pos - acc;
+        const p = this.pieces[i];
+        const left = { source: p.source, start: p.start, len: k };
+        const right = { source: p.source, start: p.start + k, len: p.len - k };
+        this.pieces.splice(i, 1, left, right);
+        return i + 1;
+      }
+      acc += c;
+    }
+    return this.pieces.length;
+  }
+  insert(pos, text) {
+    const t = cps(text);
+    if (!t.length) return;
+    const start = this.add.length;
+    for (const ch of t) this.add.push(ch);
+    const piece = { source: "add", start, len: t.length };
+    if (pos === this.length) {
+      const last = this.pieces[this.pieces.length - 1];
+      if (last && last.source === "add" && last.start + last.len === start) {
+        last.len += t.length;
+        return;
+      }
+    }
+    const idx = this.splitAt(pos);
+    this.pieces.splice(idx, 0, piece);
+  }
+  delete(start, end) {
+    if (start >= end) return;
+    const i = this.splitAt(start);
+    const j = this.splitAt(end);
+    this.pieces.splice(i, j - i);
+  }
+  slice(start, end) {
+    return cps(this.contents()).slice(start, end).join("");
+  }
+  lineCount() {
+    let n = 1;
+    for (const ch of this.contents()) if (ch === "\n") n++;
+    return n;
+  }
+  offsetToLineCol(pos) {
+    let line = 0, col = 0;
+    const c = cps(this.contents());
+    for (let i = 0; i < pos && i < c.length; i++) {
+      if (c[i] === "\n") { line++; col = 0; } else col++;
+    }
+    return [line, col];
+  }
+  pieceView() {
+    return this.pieces.map((p) => {
+      const s = this.store(p.source);
+      return {
+        source: p.source,
+        start: p.start,
+        len: p.len,
+        text: s.slice(p.start, p.start + p.len).join(""),
+      };
+    });
+  }
+}
+
+// Editor with a coalescing undo and redo history, mirroring the Rust editor.
+class Editor {
+  constructor(text) {
+    this.pt = new PieceTable(text);
+    this.undoStack = [];
+    this.redoStack = [];
+    this.pending = null;
+  }
+  commit() {
+    if (this.pending && this.pending.ops.length) this.undoStack.push(this.pending);
+    this.pending = null;
+  }
+  pushInsert(pos, text, coalesce) {
+    this.redoStack = [];
+    const n = cps(text).length;
+    if (coalesce && this.pending && this.pending.coalescing &&
+        this.pending.ops.length && this.pending.insertEnd === pos) {
+      const last = this.pending.ops[this.pending.ops.length - 1];
+      if (last.type === "insert") {
+        last.text += text;
+        this.pending.insertEnd = pos + n;
+        return;
+      }
+    }
+    this.commit();
+    this.pending = { ops: [{ type: "insert", at: pos, text }], coalescing: coalesce, insertEnd: pos + n };
+    if (!coalesce) this.commit();
+  }
+  insert(pos, text) {
+    if (!text) return;
+    this.pt.insert(pos, text);
+    this.commit();
+    this.pushInsert(pos, text, false);
+  }
+  type(pos, text) {
+    if (!text) return;
+    this.pt.insert(pos, text);
+    this.pushInsert(pos, text, true);
+  }
+  delete(start, end) {
+    if (start >= end) return;
+    const removed = this.pt.slice(start, end);
+    this.pt.delete(start, end);
+    this.commit();
+    this.pending = { ops: [{ type: "delete", at: start, text: removed }], coalescing: false, insertEnd: 0 };
+    this.redoStack = [];
+    this.commit();
+  }
+  applyInverse(tx) {
+    for (let i = tx.ops.length - 1; i >= 0; i--) {
+      const op = tx.ops[i];
+      if (op.type === "insert") this.pt.delete(op.at, op.at + cps(op.text).length);
+      else this.pt.insert(op.at, op.text);
+    }
+  }
+  applyForward(tx) {
+    for (const op of tx.ops) {
+      if (op.type === "insert") this.pt.insert(op.at, op.text);
+      else this.pt.delete(op.at, op.at + cps(op.text).length);
+    }
+  }
+  undo() {
+    this.commit();
+    const tx = this.undoStack.pop();
+    if (!tx) return false;
+    this.applyInverse(tx);
+    this.redoStack.push(tx);
+    return true;
+  }
+  redo() {
+    this.commit();
+    const tx = this.redoStack.pop();
+    if (!tx) return false;
+    this.applyForward(tx);
+    this.undoStack.push(tx);
+    return true;
+  }
+  canUndo() { return this.undoStack.length > 0 || (this.pending && this.pending.ops.length > 0); }
+  canRedo() { return this.redoStack.length > 0; }
+}
+
+function findAll(hay, needle) {
+  const h = cps(hay), n = cps(needle), out = [];
+  if (!n.length) return out;
+  let i = 0;
+  while (i + n.length <= h.length) {
+    let ok = true;
+    for (let j = 0; j < n.length; j++) {
+      if (h[i + j] !== n[j]) { ok = false; break; }
+    }
+    if (ok) { out.push(i); i += n.length; } else i++;
+  }
+  return out;
+}
+
+const SAMPLE =
+  "The quick brown fox jumps over the lazy dog.\n" +
+  "A piece table keeps edits cheap: the text is never rewritten in place.\n" +
+  "Type here, select with shift and arrows, then undo and redo.\n" +
+  "Search for the word the to see every match light up.";
+
+let ed = new Editor(SAMPLE);
+let state = { caret: 0, anchor: null };
+
+const el = {
+  editor: document.getElementById("editor"),
+  pieces: document.getElementById("pieces"),
+  search: document.getElementById("search"),
+  matchCount: document.getElementById("matchCount"),
+  ln: document.getElementById("ln"),
+  col: document.getElementById("col"),
+  chars: document.getElementById("chars"),
+  lines: document.getElementById("lines"),
+  pieceCount: document.getElementById("pieceCount"),
+  selLen: document.getElementById("selLen"),
+  undo: document.getElementById("undo"),
+  redo: document.getElementById("redo"),
+  clear: document.getElementById("clear"),
+  reset: document.getElementById("reset"),
+};
+
+function selRange() {
+  if (state.anchor === null || state.anchor === state.caret) return [null, null];
+  return [Math.min(state.anchor, state.caret), Math.max(state.anchor, state.caret)];
+}
+
+function matchOffsets() {
+  const needle = el.search.value;
+  const set = new Set();
+  if (!needle) { el.matchCount.textContent = "0"; return set; }
+  const hits = findAll(ed.pt.contents(), needle);
+  el.matchCount.textContent = String(hits.length);
+  const nLen = cps(needle).length;
+  for (const h of hits) for (let k = 0; k < nLen; k++) set.add(h + k);
+  return set;
+}
+
+function render() {
+  const text = cps(ed.pt.contents());
+  const len = text.length;
+  if (state.caret > len) state.caret = len;
+  if (state.anchor !== null && state.anchor > len) state.anchor = len;
+  const [lo, hi] = selRange();
+  const matches = matchOffsets();
+
+  const frag = document.createDocumentFragment();
+  for (let i = 0; i <= len; i++) {
+    if (i === state.caret) {
+      const caret = document.createElement("span");
+      caret.className = "caret";
+      frag.appendChild(caret);
+    }
+    if (i < len) {
+      const ch = text[i];
+      const span = document.createElement("span");
+      span.className = "ch";
+      span.dataset.off = String(i);
+      if (lo !== null && i >= lo && i < hi) span.classList.add("sel");
+      if (matches.has(i)) span.classList.add("match");
+      if (ch === "\n") { span.classList.add("nl"); span.textContent = "\n"; }
+      else span.textContent = ch;
+      frag.appendChild(span);
+    }
+  }
+  el.editor.replaceChildren(frag);
+  updateStats(len, lo, hi);
+  updatePieces();
+  el.undo.disabled = !ed.canUndo();
+  el.redo.disabled = !ed.canRedo();
+}
+
+function updateStats(len, lo, hi) {
+  const [line, col] = ed.pt.offsetToLineCol(state.caret);
+  el.ln.textContent = String(line + 1);
+  el.col.textContent = String(col + 1);
+  el.chars.textContent = String(len);
+  el.lines.textContent = String(ed.pt.lineCount());
+  el.pieceCount.textContent = String(ed.pt.pieces.length);
+  el.selLen.textContent = lo === null ? "0" : String(hi - lo);
+}
+
+function updatePieces() {
+  const view = ed.pt.pieceView();
+  const frag = document.createDocumentFragment();
+  view.forEach((p, i) => {
+    const row = document.createElement("div");
+    row.className = "piece";
+    const badge = document.createElement("span");
+    badge.className = "badge " + p.source;
+    badge.textContent = p.source;
+    const range = document.createElement("span");
+    range.className = "range";
+    range.textContent = "[" + p.start + ".." + (p.start + p.len) + ")";
+    const txt = document.createElement("span");
+    txt.className = "txt";
+    txt.textContent = JSON.stringify(p.text);
+    row.appendChild(badge);
+    row.appendChild(range);
+    row.appendChild(txt);
+    frag.appendChild(row);
+  });
+  if (!view.length) {
+    const empty = document.createElement("div");
+    empty.className = "piece";
+    empty.textContent = "(empty buffer, no pieces)";
+    frag.appendChild(empty);
+  }
+  el.pieces.replaceChildren(frag);
+}
+
+function setCaret(pos, extend) {
+  const len = cps(ed.pt.contents()).length;
+  pos = Math.max(0, Math.min(pos, len));
+  if (extend) {
+    if (state.anchor === null) state.anchor = state.caret;
+    state.caret = pos;
+  } else {
+    state.caret = pos;
+    state.anchor = null;
+  }
+}
+
+function deleteSelection() {
+  const [lo, hi] = selRange();
+  if (lo === null) return false;
+  ed.delete(lo, hi);
+  state.caret = lo;
+  state.anchor = null;
+  return true;
+}
+
+function insertText(str, coalesce) {
+  deleteSelection();
+  if (coalesce && cps(str).length === 1) ed.type(state.caret, str);
+  else ed.insert(state.caret, str);
+  state.caret += cps(str).length;
+  state.anchor = null;
+}
+
+function lineStarts() {
+  const c = cps(ed.pt.contents());
+  const starts = [0];
+  for (let i = 0; i < c.length; i++) if (c[i] === "\n") starts.push(i + 1);
+  return starts;
+}
+
+function moveVertical(dir, extend) {
+  const [line, col] = ed.pt.offsetToLineCol(state.caret);
+  const starts = lineStarts();
+  const target = line + dir;
+  if (target < 0 || target >= starts.length) return;
+  const len = cps(ed.pt.contents()).length;
+  const start = starts[target];
+  const end = target + 1 < starts.length ? starts[target + 1] - 1 : len;
+  setCaret(Math.min(start + col, end), extend);
+}
+
+function lineEnds(pos) {
+  const starts = lineStarts();
+  const [line] = ed.pt.offsetToLineCol(pos);
+  const len = cps(ed.pt.contents()).length;
+  const start = starts[line];
+  const end = line + 1 < starts.length ? starts[line + 1] - 1 : len;
+  return [start, end];
+}
+
+el.editor.addEventListener("keydown", (e) => {
+  const mod = e.ctrlKey || e.metaKey;
+  const len = cps(ed.pt.contents()).length;
+
+  if (mod && (e.key === "z" || e.key === "Z")) {
+    e.preventDefault();
+    if (e.shiftKey) ed.redo(); else ed.undo();
+    render();
+    return;
+  }
+  if (mod && (e.key === "y" || e.key === "Y")) {
+    e.preventDefault();
+    ed.redo();
+    render();
+    return;
+  }
+  if (mod && (e.key === "a" || e.key === "A")) {
+    e.preventDefault();
+    state.anchor = 0;
+    state.caret = len;
+    render();
+    return;
+  }
+  if (mod) return; // let other shortcuts (copy, paste) through
+
+  switch (e.key) {
+    case "ArrowLeft": e.preventDefault(); setCaret(state.caret - 1, e.shiftKey); break;
+    case "ArrowRight": e.preventDefault(); setCaret(state.caret + 1, e.shiftKey); break;
+    case "ArrowUp": e.preventDefault(); moveVertical(-1, e.shiftKey); break;
+    case "ArrowDown": e.preventDefault(); moveVertical(1, e.shiftKey); break;
+    case "Home": { e.preventDefault(); const [s] = lineEnds(state.caret); setCaret(s, e.shiftKey); break; }
+    case "End": { e.preventDefault(); const [, en] = lineEnds(state.caret); setCaret(en, e.shiftKey); break; }
+    case "Backspace":
+      e.preventDefault();
+      if (!deleteSelection() && state.caret > 0) {
+        ed.delete(state.caret - 1, state.caret);
+        state.caret -= 1;
+      }
+      break;
+    case "Delete":
+      e.preventDefault();
+      if (!deleteSelection() && state.caret < len) ed.delete(state.caret, state.caret + 1);
+      break;
+    case "Enter": e.preventDefault(); insertText("\n", false); break;
+    case "Tab": e.preventDefault(); insertText("  ", false); break;
+    default:
+      if (e.key.length === 1) { e.preventDefault(); insertText(e.key, true); }
+      else return;
+  }
+  render();
+});
+
+el.editor.addEventListener("paste", (e) => {
+  e.preventDefault();
+  const text = (e.clipboardData || window.clipboardData).getData("text");
+  if (text) { insertText(text, false); render(); }
+});
+
+el.editor.addEventListener("mousedown", (e) => {
+  const target = e.target.closest(".ch");
+  if (target) {
+    const off = parseInt(target.dataset.off, 10);
+    const rect = target.getBoundingClientRect();
+    const after = e.clientX - rect.left > rect.width / 2;
+    setCaret(after ? off + 1 : off, e.shiftKey);
+  } else {
+    setCaret(cps(ed.pt.contents()).length, e.shiftKey);
+  }
+  render();
+  // Focus after render so the caret shows immediately.
+  el.editor.focus();
+});
+
+el.search.addEventListener("input", render);
+el.undo.addEventListener("click", () => { ed.undo(); el.editor.focus(); render(); });
+el.redo.addEventListener("click", () => { ed.redo(); el.editor.focus(); render(); });
+el.clear.addEventListener("click", () => {
+  ed = new Editor("");
+  state = { caret: 0, anchor: null };
+  el.editor.focus();
+  render();
+});
+el.reset.addEventListener("click", () => {
+  ed = new Editor(SAMPLE);
+  state = { caret: 0, anchor: null };
+  el.editor.focus();
+  render();
+});
+
+render();
+</script>
 </body>
 </html>
