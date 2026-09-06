@@ -244,6 +244,44 @@ impl PieceTable {
             self.char_len -= p.char_len;
             self.newline_total -= p.newlines;
         }
+        self.merge_at(i);
+    }
+
+    /// Merge the two pieces meeting at seam `idx` when they come from the same
+    /// store and are byte contiguous, with `idx` pointing just past the left
+    /// piece in document order. Undoing a delete leaves exactly such a seam,
+    /// and without this merge steady state typing, backspacing, and undo/redo
+    /// churn would grow the piece list by one piece per cycle forever. The
+    /// merge is O(1): byte ranges concatenate and every counter combines from
+    /// the two halves without rescanning text.
+    fn merge_at(&mut self, idx: usize) {
+        if idx == 0 || idx >= self.pieces.len() {
+            return;
+        }
+        let mergeable = {
+            let left = &self.pieces[idx - 1];
+            let right = &self.pieces[idx];
+            left.source == right.source && left.start + left.byte_len == right.start
+        };
+        if !mergeable {
+            return;
+        }
+        let left = self.pieces[idx - 1].clone();
+        let right = self.pieces[idx].clone();
+        let merged = Piece {
+            source: left.source,
+            start: left.start,
+            byte_len: left.byte_len + right.byte_len,
+            char_len: left.char_len + right.char_len,
+            newlines: left.newlines + right.newlines,
+            tail_chars: if right.newlines > 0 {
+                right.tail_chars
+            } else {
+                left.tail_chars + right.char_len
+            },
+        };
+        self.pieces[idx - 1] = merged;
+        self.pieces.remove(idx);
     }
 
     /// Replace the characters in `start..end` with `text`.
