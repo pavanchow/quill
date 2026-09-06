@@ -9,7 +9,7 @@
 //! `commit` starts a fresh transaction. Making a new edit clears the redo stack,
 //! so redo is only ever valid until the next change.
 
-use crate::cursor::CursorSet;
+use crate::cursor::{Cursor, CursorSet};
 use crate::piece_table::{PieceInfo, PieceTable};
 use crate::search;
 
@@ -148,6 +148,18 @@ impl TextEditor {
                 self.pending.ops.push(op);
             }
         }
+    }
+
+    /// Record `ops` as one committed transaction, dropping any redo history.
+    fn push_tx(&mut self, ops: Vec<Op>) {
+        if ops.is_empty() {
+            return;
+        }
+        self.commit();
+        self.redo.clear();
+        self.pending.ops = ops;
+        self.pending.coalescing = false;
+        self.commit();
     }
 
     /// Insert `text` at character offset `pos`, starting a new undo group.
@@ -296,6 +308,191 @@ impl TextEditor {
     /// Whether a redo is available.
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
+    }
+
+    /// Insert `text` at every cursor, replacing each cursor's selection when
+    /// one is active. Cursors are applied from the highest offset down so
+    /// lower offsets stay valid, and each cursor's edit is recorded as its own
+    /// undo transaction: undo walks back one cursor at a time. Returns the
+    /// number of cursors that edited. Every caret ends up just past its own
+    /// copy of `text`.
+    ///
+    /// Selections are expected not to overlap; overlapping selections are
+    /// still applied deterministically in descending start order.
+    pub fn insert_at_cursors(&mut self, text: &str) -> usize {
+        if text.is_empty() || self.cursors.is_empty() {
+            return 0;
+        }
+        let n = text.chars().count();
+        // Edit start per cursor (selection start when a selection is active),
+        // in descending order so lower offsets stay valid while applying.
+        let mut edits: Vec<(usize, Option<(usize, usize)>)> = self
+            .cursors
+            .cursors()
+            .iter()
+            .map(|c| (c.caret, c.selected_range()))
+            .map(|(caret, sel)| match sel {
+                Some((s, e)) => (s, Some((s, e))),
+                None => (caret, None),
+            })
+            .collect();
+        edits.sort_by_key(|&(at, _)| std::cmp::Reverse(at));
+
+        for &(at, sel) in &edits {
+            let mut ops = Vec::with_capacity(2);
+            if let Some((s, e)) = sel {
+                let removed = self.buffer.slice(s, e);
+                self.buffer.delete(s, e);
+                ops.push(Op::Delete { at: s, text: removed });
+            }
+            self.buffer.insert(at, text);
+            ops.push(Op::Insert {
+                at,
+                text: text.to_string(),
+            });
+            self.push_tx(ops);
+        }
+
+        // Recompute carets: each sits just past its inserted copy, shifted by
+        // every lower edit's insertion. Walk ascending with a running shift.
+        let applied = edits.len();
+        let mut ascending = edits;
+        ascending.sort_by_key(|&(at, _)| at);
+        let mut shift = 0usize;
+        let mut new_cursors = Vec::with_capacity(ascending.len());
+        for &(at, _) in &ascending {
+            new_cursors.push(Cursor::at(at + n + shift));
+            shift += n;
+        }
+        self.set_cursors(CursorSet::from_cursors(new_cursors));
+        applied
+    }
+
+    /// Delete every cursor's selected range, highest offset first, one undo
+    /// transaction per deletion. Returns the number of cursors that deleted
+    /// something. Cursors that deleted collapse to their selection starts;
+    /// bare carets stay put. Both are shifted by lower deletions.
+    pub fn delete_selections(&mut self) -> usize {
+        let mut deletions: Vec<(usize, usize)> = self
+            .cursors
+            .cursors()
+            .iter()
+            .filter_map(|c| c.selected_range())
+            .collect();
+        if deletions.is_empty() {
+            return 0;
+        }
+        deletions.sort_by_key(|&(s, _)| std::cmp::Reverse(s));
+        let mut count = 0usize;
+        for (s, e) in &deletions {
+            let removed = self.buffer.slice(*s, *e);
+            self.buffer.delete(*s, *e);
+            self.push_tx(vec![Op::Delete {
+                at: *s,
+                text: removed,
+            }]);
+            count += 1;
+        }
+        // Rebuild the cursor set: deleted selections collapse to their start,
+        // bare carets stay, everything shifts by lower deletions. At equal
+        // offsets a bare caret is processed before a deletion starting there
+        // so it is not shifted by that deletion.
+        let mut records: Vec<(usize, Option<(usize, usize)>)> = self
+            .cursors
+            .cursors()
+            .iter()
+            .map(|c| (c.caret, c.selected_range()))
+            .map(|(caret, sel)| match sel {
+                Some((s, e)) => (s, Some((s, e))),
+                None => (caret, None),
+            })
+            .collect();
+        records.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.is_none().cmp(&a.1.is_none())));
+        let mut shift = 0isize;
+        let mut new_cursors = Vec::with_capacity(records.len());
+        for &(point, sel) in &records {
+            match sel {
+                Some((s, e)) => {
+                    new_cursors.push(Cursor::at((point as isize + shift) as usize));
+                    shift -= (e - s) as isize;
+                }
+                None => new_cursors.push(Cursor::at((point as isize + shift) as usize)),
+            }
+        }
+        self.set_cursors(CursorSet::from_cursors(new_cursors));
+        count
+    }
+
+    /// Replace every non-overlapping occurrence of `needle` with `replacement`
+    /// as a single undo group. Occurrences are found left to right on the
+    /// current text and applied from the highest offset down, so an
+    /// `replacement` containing `needle` is never rescanned. Returns the
+    /// number of replacements. An empty needle replaces nothing.
+    pub fn replace_all(&mut self, needle: &str, replacement: &str) -> usize {
+        if needle.is_empty() {
+            return 0;
+        }
+        let contents = self.buffer.contents();
+        let matches = search::find_all(&contents, needle);
+        if matches.is_empty() {
+            return 0;
+        }
+        let n = needle.chars().count();
+        let mut ops = Vec::with_capacity(matches.len() * 2);
+        for &start in matches.iter().rev() {
+            let end = start + n;
+            let removed = self.buffer.slice(start, end);
+            self.buffer.delete(start, end);
+            ops.push(Op::Delete {
+                at: start,
+                text: removed,
+            });
+            if !replacement.is_empty() {
+                self.buffer.insert(start, replacement);
+                ops.push(Op::Insert {
+                    at: start,
+                    text: replacement.to_string(),
+                });
+            }
+        }
+        self.push_tx(ops);
+        self.cursors.clamp(self.buffer.char_len());
+        matches.len()
+    }
+
+    /// Interactive replace: replace the first occurrence of `needle` at or
+    /// after character offset `from` with `replacement` as one undo group.
+    /// Returns the range covering the inserted replacement so the caller can
+    /// continue searching past it, or `None` when nothing matches.
+    pub fn replace_next(
+        &mut self,
+        needle: &str,
+        replacement: &str,
+        from: usize,
+    ) -> Option<(usize, usize)> {
+        if needle.is_empty() || from > self.buffer.char_len() {
+            return None;
+        }
+        let contents = self.buffer.contents();
+        let hits = search::find_all(&contents, needle);
+        let &start = hits.iter().find(|&&h| h >= from)?;
+        let end = start + needle.chars().count();
+        let removed = self.buffer.slice(start, end);
+        self.buffer.delete(start, end);
+        let mut ops = vec![Op::Delete {
+            at: start,
+            text: removed,
+        }];
+        if !replacement.is_empty() {
+            self.buffer.insert(start, replacement);
+            ops.push(Op::Insert {
+                at: start,
+                text: replacement.to_string(),
+            });
+        }
+        self.push_tx(ops);
+        self.cursors.clamp(self.buffer.char_len());
+        Some((start, start + replacement.chars().count()))
     }
 }
 
