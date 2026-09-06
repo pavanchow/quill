@@ -85,6 +85,11 @@ impl TextEditor {
         self.buffer.char_len()
     }
 
+    /// Whether the document holds no characters.
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
     /// Number of lines.
     pub fn line_count(&self) -> usize {
         self.buffer.line_count()

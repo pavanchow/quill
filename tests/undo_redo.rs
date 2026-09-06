@@ -10,7 +10,7 @@
 mod common;
 
 use common::*;
-use quill::TextEditor;
+use quill::{Cursor, CursorSet, TextEditor};
 
 #[test]
 fn undo_all_then_redo_all_round_trip() {
@@ -112,4 +112,126 @@ fn new_edit_after_undo_invalidates_redo() {
     ed.insert(0, "Z");
     assert!(!ed.can_redo());
     assert_eq!(ed.contents(), "Zabcdef");
+}
+
+#[test]
+fn undo_past_the_beginning_stops_cleanly() {
+    let mut ed = TextEditor::new("seed");
+    ed.insert(4, " more");
+    assert!(ed.undo());
+    // The history is exhausted: further undo calls report false and leave the
+    // buffer untouched instead of panicking or corrupting state.
+    for _ in 0..8 {
+        assert!(!ed.undo());
+        assert_eq!(ed.contents(), "seed");
+    }
+    // Redo still works after a run of dry undos.
+    assert!(ed.redo());
+    assert_eq!(ed.contents(), "seed more");
+}
+
+#[test]
+fn redo_after_history_truncation_is_dead() {
+    let mut ed = TextEditor::new("seed");
+    ed.insert(4, " one");
+    ed.insert(8, " two");
+    // Build redo candidates, then truncate them with a fresh edit.
+    assert!(ed.undo());
+    assert!(ed.can_redo());
+    ed.insert(0, "NEW ");
+    assert!(!ed.can_redo());
+    for _ in 0..4 {
+        assert!(!ed.redo());
+        assert_eq!(ed.contents(), "NEW seed one");
+    }
+    // Truncation mid-walk: undo twice, redo once, new edit kills the rest.
+    let mut ed = TextEditor::new("base");
+    ed.insert(4, "1");
+    ed.insert(5, "2");
+    ed.insert(6, "3");
+    assert!(ed.undo());
+    assert!(ed.undo());
+    assert!(ed.redo());
+    assert_eq!(ed.contents(), "base12");
+    ed.insert(6, "X");
+    assert!(!ed.can_redo());
+    while ed.undo() {}
+    assert_eq!(ed.contents(), "base");
+    while ed.redo() {}
+    assert_eq!(ed.contents(), "base12X");
+}
+
+#[test]
+fn empty_document_edit_cycle_round_trips() {
+    let mut ed = TextEditor::empty();
+    // Undo/redo on an empty history must be clean.
+    assert!(!ed.undo());
+    assert!(!ed.redo());
+    // Delete the entire document, then edit again.
+    ed.insert(0, "content é世🦀");
+    let n = ed.char_len();
+    ed.delete(0, n);
+    assert!(ed.is_empty());
+    assert_eq!(ed.line_count(), 1);
+    ed.insert(0, "again");
+    ed.insert(5, "!");
+    assert_eq!(ed.contents(), "again!");
+    // Replace the whole document with the empty string (pure delete).
+    let n = ed.char_len();
+    ed.replace(0, n, "");
+    assert!(ed.is_empty());
+    assert!(ed.undo(), "replace recorded no undo group");
+    assert_eq!(ed.contents(), "again!");
+    while ed.undo() {}
+    assert!(ed.is_empty(), "undo-all must reach the empty initial document");
+    // A no-op replace records no group and no redo invalidation.
+    let mut ed = TextEditor::new("keep");
+    ed.replace(2, 2, "");
+    assert_eq!(ed.history_len(), 0);
+    assert_eq!(ed.contents(), "keep");
+}
+
+#[test]
+fn cursor_ranges_at_document_boundaries() {
+    let mut ed = TextEditor::new("seed é世🦀");
+    let len = ed.char_len();
+    // Cursors at both boundaries and beyond: clamped into range.
+    ed.set_cursors(CursorSet::from_cursors(vec![
+        Cursor::at(0),
+        Cursor::at(len),
+        Cursor::at(len + 100),
+        Cursor::selection(0, len),
+    ]));
+    for c in ed.cursors().cursors() {
+        assert!(c.caret <= len, "caret {} past end {len}", c.caret);
+    }
+    // Multi-cursor insert with a boundary caret set.
+    let mut ed = TextEditor::new("mid");
+    ed.set_cursors(CursorSet::from_cursors(vec![Cursor::at(0), Cursor::at(3)]));
+    assert_eq!(ed.insert_at_cursors("<>"), 2);
+    assert_eq!(ed.contents(), "<>mid<>");
+    // Undo walks one cursor at a time: the lowest caret was applied last, so
+    // its transaction is reverted first.
+    assert!(ed.undo());
+    assert_eq!(ed.contents(), "mid<>");
+    assert!(ed.undo());
+    assert_eq!(ed.contents(), "mid");
+    assert!(!ed.undo());
+    // Delete a selection spanning the whole document from the cursor model.
+    let mut ed = TextEditor::new("whole");
+    ed.set_cursors(CursorSet::from_cursors(vec![Cursor::selection(0, 5)]));
+    assert_eq!(ed.delete_selections(), 1);
+    assert!(ed.is_empty());
+    assert_eq!(ed.cursors().cursors()[0].caret, 0);
+    assert!(ed.undo());
+    assert_eq!(ed.contents(), "whole");
+    // replace_all on an empty document and with a needle equal to the document.
+    let mut ed = TextEditor::empty();
+    assert_eq!(ed.replace_all("x", "y"), 0);
+    assert_eq!(ed.replace_next("x", "y", 0), None);
+    ed.insert(0, "solo");
+    assert_eq!(ed.replace_all("solo", ""), 1);
+    assert!(ed.is_empty());
+    assert!(ed.undo());
+    assert_eq!(ed.contents(), "solo");
 }
