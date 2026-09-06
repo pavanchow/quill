@@ -47,6 +47,17 @@ length of the document, which is the property a `String` lacks. A contiguous run
 of appends at the end of the buffer is coalesced into a single growing piece, so
 ordinary typing does not fragment the table.
 
+A delete leaves a seam where the removed pieces were drained. If the two pieces
+that now touch come from the same store and are byte contiguous, they are merged
+back into one piece in constant time, combining the cached counters from the two
+halves without rescanning any text. This matters because steady state editing,
+typing a few characters and deleting them again at scattered positions, would
+otherwise leave one permanent piece behind per cycle. With the seam merge the
+piece count under such churn stays flat, which the stress gate asserts directly.
+The structural size of the table therefore tracks the edit count, never the
+volume of the document, and a same-size gate test on a one megabyte and a four
+megabyte document produces the same piece count for the same edit script.
+
 Every public offset is a character offset, a count of Unicode scalar values, not
 a byte offset. A character offset can never point inside a multibyte UTF-8
 sequence, so every edit position is valid and no edit can split a code point.
@@ -98,7 +109,54 @@ current transaction.
 Undo pops a transaction, applies the inverse of each primitive in reverse order,
 and pushes the transaction onto the redo stack. Redo does the reverse. Making any
 new edit clears the redo stack, so a redo is only ever valid until the next
-change, which is the behavior users expect.
+change, which is the behavior users expect. Undo past the beginning reports
+false and leaves the buffer untouched.
+
+## Multi-cursor editing and structured replace
+
+The cursor set already held multiple carets. The editor now edits through them
+as a unit.
+
+`insert_at_cursors` inserts the same text at every caret, replacing the
+selection of any cursor that has one. The cursors are applied from the highest
+offset down, so lower offsets stay valid while higher ones are edited. Each
+cursor's edit is recorded as one transaction of its own, so undo walks back one
+cursor at a time and the per-cursor grouping is directly observable. After the
+edit every caret sits just past its own copy of the text, shifted by the
+insertions of lower cursors.
+
+`delete_selections` removes every selected range under the same discipline,
+highest offset first and one transaction per deletion. Cursors that deleted
+collapse to their selection starts, bare carets stay put, and everything is
+shifted by the deletions below it.
+
+Structured replace is built on the same transaction primitives.
+`replace_all` finds every non overlapping occurrence left to right on a
+snapshot of the text, applies the replacements from the highest offset down as
+one transaction, and returns the match count. Because the occurrences come from
+one pass over the pre-edit text, a replacement that contains the needle is never
+rescanned. `replace_next` replaces the first occurrence at or after an offset as
+its own transaction and returns the range covering the inserted replacement, so
+an interactive caller can continue searching past it one step at a time.
+
+The gate composes the same edits as single-cursor splices on a plain `String`
+and requires the multi-cursor result to match, checks that undo count equals
+cursor count with intermediate states matching the oracle, and pins replace-all
+against a naive character scan.
+
+## Stress scaling
+
+Beyond the bounded gates, `tests/stress.rs` runs the same properties at
+environment scaled sizes with small CI defaults. The mixed differential drives
+hundreds of thousands of edits into multi-megabyte documents against a
+`Vec<char>` oracle whose splices cost the window rather than the document, with
+scalar counts checked every operation and full contents compared at checkpoints.
+The churn phase interleaves bounded undo and redo walks with fresh edits and
+performs exact per-burst undo and redo round trips. The boundary phase edits at
+every character offset and every byte offset, including offsets inside multibyte
+sequences, of a dense multibyte document. The search phase compares matches
+against a naive finder while the document is being edited. The knobs are
+`QUILL_FUZZ_OPS`, `QUILL_STRESS_SEEDS`, and `QUILL_STRESS_DOC_KB`.
 
 ## Why each gate proves its claim
 
