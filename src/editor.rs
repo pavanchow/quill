@@ -350,6 +350,11 @@ impl TextEditor {
     /// number of cursors that edited. Every caret ends up just past its own
     /// copy of `text`.
     ///
+    /// A bare caret strictly inside another cursor's selection is consumed by
+    /// that selection's edit and does not insert: its copy would land inside
+    /// text the replacement is about to delete. Carets at a selection's start
+    /// or end are not inside it and edit normally.
+    ///
     /// Selections are expected not to overlap; overlapping selections are
     /// still applied deterministically in descending start order.
     pub fn insert_at_cursors(&mut self, text: &str) -> usize {
@@ -357,18 +362,37 @@ impl TextEditor {
             return 0;
         }
         let n = text.chars().count();
+        let selections: Vec<(usize, usize)> = self
+            .cursors
+            .cursors()
+            .iter()
+            .filter_map(Cursor::selected_range)
+            .collect();
+        let swallowed = |caret: usize| {
+            selections
+                .iter()
+                .any(|&(s, e)| caret > s && caret < e)
+        };
         // Edit start per cursor (selection start when a selection is active),
         // in descending order so lower offsets stay valid while applying.
+        // Bare carets inside a selection are dropped, never edited.
         let mut edits: Vec<(usize, Option<(usize, usize)>)> = self
             .cursors
             .cursors()
             .iter()
+            .filter(|c| match c.selected_range() {
+                Some(_) => true,
+                None => !swallowed(c.caret),
+            })
             .map(|c| (c.caret, c.selected_range()))
             .map(|(caret, sel)| match sel {
                 Some((s, e)) => (s, Some((s, e))),
                 None => (caret, None),
             })
             .collect();
+        if edits.is_empty() {
+            return 0;
+        }
         edits.sort_by_key(|&(at, _)| std::cmp::Reverse(at));
 
         for &(at, sel) in &edits {
@@ -403,8 +427,10 @@ impl TextEditor {
 
     /// Delete every cursor's selected range, highest offset first, one undo
     /// transaction per deletion. Returns the number of cursors that deleted
-    /// something. Cursors that deleted collapse to their selection starts;
-    /// bare carets stay put. Both are shifted by lower deletions.
+    /// something. Cursors that deleted collapse to their selection starts.
+    /// A bare caret strictly inside a deleted range collapses onto that
+    /// range's start. A caret at a range start stays. Everything else shifts
+    /// by the deletions below it.
     pub fn delete_selections(&mut self) -> usize {
         let mut deletions: Vec<(usize, usize)> = self
             .cursors
@@ -426,29 +452,41 @@ impl TextEditor {
             }]);
             count += 1;
         }
-        // Rebuild the cursor set: deleted selections collapse to their start,
-        // bare carets stay, everything shifts by lower deletions. At equal
-        // offsets a bare caret is processed before a deletion starting there
-        // so it is not shifted by that deletion.
-        let mut records: Vec<(usize, Option<(usize, usize)>)> = self
-            .cursors
-            .cursors()
-            .iter()
-            .map(|c| (c.caret, c.selected_range()))
-            .map(|(caret, sel)| match sel {
-                Some((s, e)) => (s, Some((s, e))),
-                None => (caret, None),
-            })
-            .collect();
-        records.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.is_none().cmp(&a.1.is_none())));
-        let mut deleted_below = 0usize;
-        let mut new_cursors = Vec::with_capacity(records.len());
-        for &(point, sel) in &records {
-            // A bare caret inside a deleted range collapses to its start.
-            new_cursors.push(Cursor::at(point.saturating_sub(deleted_below)));
-            if let Some((_, e)) = sel {
-                deleted_below += e - point;
+        // Rebuild the cursor set through one mapping over the merged deletion
+        // intervals. A caret strictly inside an interval collapses onto the
+        // interval start, a caret at an interval start stays, a caret at or
+        // past an interval end shifts by the deletion, and anything below
+        // shifts by nothing. Saturation would send an in-range caret to 0,
+        // so the mapping clamps onto the interval start instead.
+        fn map_offset(x: usize, ivs: &[(usize, usize)]) -> usize {
+            let mut consumed = 0usize;
+            for &(s, e) in ivs {
+                if x >= e {
+                    consumed += e - s;
+                } else if x > s {
+                    return s - consumed;
+                } else {
+                    break;
+                }
             }
+            x - consumed
+        }
+        let mut intervals = deletions.clone();
+        intervals.sort_unstable();
+        let mut merged: Vec<(usize, usize)> = Vec::with_capacity(intervals.len());
+        for &(s, e) in &intervals {
+            match merged.last_mut() {
+                Some(last) if s <= last.1 => last.1 = last.1.max(e),
+                _ => merged.push((s, e)),
+            }
+        }
+        let mut new_cursors = Vec::with_capacity(self.cursors.cursors().len());
+        for cursor in self.cursors.cursors() {
+            let point = match cursor.selected_range() {
+                Some((s, _)) => s,
+                None => cursor.caret,
+            };
+            new_cursors.push(Cursor::at(map_offset(point, &merged)));
         }
         self.set_cursors(CursorSet::from_cursors(new_cursors));
         count

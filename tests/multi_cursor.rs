@@ -378,6 +378,63 @@ fn replace_next_interactive_loop_equals_replace_all() {
     }
 }
 
+/// A bare caret strictly inside another cursor's selection is consumed by that
+/// selection's edit. For delete_selections the documented contract is that the
+/// caret collapses onto the deleted range's start (never below it). For
+/// insert_at_cursors the caret is dropped: its insert would land inside text
+/// that the replacement is about to delete, shifting the delete range and
+/// corrupting the result.
+#[test]
+fn caret_inside_a_selection_is_consumed_not_corrupted() {
+    // delete_selections: the swallowed caret collapses to the range start.
+    let mut ed = TextEditor::new("0123456789");
+    ed.set_cursors(CursorSet::from_cursors(vec![
+        Cursor::selection(2, 7),
+        Cursor::at(4),
+    ]));
+    assert_eq!(ed.delete_selections(), 1);
+    assert_eq!(ed.contents(), "01789");
+    let carets: Vec<usize> = ed.cursors().cursors().iter().map(|c| c.caret).collect();
+    assert_eq!(
+        carets,
+        vec![2],
+        "caret inside a deleted range must collapse to the range start"
+    );
+    assert!(ed.undo());
+    assert_eq!(ed.contents(), "0123456789");
+
+    // Same shape, caret at the range end: the plain shift already lands on the
+    // start, and both cursors merge there.
+    let mut ed = TextEditor::new("0123456789");
+    ed.set_cursors(CursorSet::from_cursors(vec![
+        Cursor::selection(2, 7),
+        Cursor::at(7),
+    ]));
+    assert_eq!(ed.delete_selections(), 1);
+    assert_eq!(ed.contents(), "01789");
+    let carets: Vec<usize> = ed.cursors().cursors().iter().map(|c| c.caret).collect();
+    assert_eq!(carets, vec![2], "caret at the range end shifts onto the start");
+
+    // insert_at_cursors: the caret inside the replaced range is consumed by
+    // the replacement, so the result is exactly the single-selection oracle.
+    let mut ed = TextEditor::new("0123456789");
+    ed.set_cursors(CursorSet::from_cursors(vec![
+        Cursor::selection(2, 7),
+        Cursor::at(4),
+    ]));
+    assert_eq!(ed.insert_at_cursors("[]"), 1, "only the selection edits");
+    let mut expect = String::from("0123456789");
+    ref_delete(&mut expect, 2, 7);
+    ref_insert(&mut expect, 2, "[]");
+    assert_eq!(ed.contents(), expect, "swallowed caret corrupted the text");
+    assert_eq!(ed.cursors().cursors()[0].caret, 4, "caret past its copy");
+    assert_eq!(ed.history_len(), 1, "one transaction for the one edit");
+    assert!(ed.undo());
+    assert_eq!(ed.contents(), "0123456789");
+    assert!(ed.redo());
+    assert_eq!(ed.contents(), expect);
+}
+
 #[test]
 fn piece_count_bounded_by_edits_not_document_size() {
     // One shared edit script, defined before any statements run.
