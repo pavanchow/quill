@@ -458,19 +458,6 @@ impl TextEditor {
         // past an interval end shifts by the deletion, and anything below
         // shifts by nothing. Saturation would send an in-range caret to 0,
         // so the mapping clamps onto the interval start instead.
-        fn map_offset(x: usize, ivs: &[(usize, usize)]) -> usize {
-            let mut consumed = 0usize;
-            for &(s, e) in ivs {
-                if x >= e {
-                    consumed += e - s;
-                } else if x > s {
-                    return s - consumed;
-                } else {
-                    break;
-                }
-            }
-            x - consumed
-        }
         let mut intervals = deletions.clone();
         intervals.sort_unstable();
         let mut merged: Vec<(usize, usize)> = Vec::with_capacity(intervals.len());
@@ -486,7 +473,7 @@ impl TextEditor {
                 Some((s, _)) => s,
                 None => cursor.caret,
             };
-            new_cursors.push(Cursor::at(map_offset(point, &merged)));
+            new_cursors.push(Cursor::at(map_deletion_offset(point, &merged)));
         }
         self.set_cursors(CursorSet::from_cursors(new_cursors));
         count
@@ -565,6 +552,24 @@ impl TextEditor {
     }
 }
 
+/// Map an offset through merged deletion intervals sorted ascending. A caret
+/// strictly inside an interval collapses onto the interval start, a caret at
+/// an interval start stays, a caret at or past an interval end shifts by the
+/// deletion, and anything below shifts by nothing.
+fn map_deletion_offset(x: usize, ivs: &[(usize, usize)]) -> usize {
+    let mut consumed = 0usize;
+    for &(s, e) in ivs {
+        if x >= e {
+            consumed += e - s;
+        } else if x > s {
+            return s - consumed;
+        } else {
+            break;
+        }
+    }
+    x - consumed
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -620,3 +625,4 @@ mod tests {
         assert_eq!(ed.contents(), "the cat sat");
     }
 }
+

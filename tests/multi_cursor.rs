@@ -379,9 +379,9 @@ fn replace_next_interactive_loop_equals_replace_all() {
 }
 
 /// A bare caret strictly inside another cursor's selection is consumed by that
-/// selection's edit. For delete_selections the documented contract is that the
+/// selection's edit. For `delete_selections` the documented contract is that the
 /// caret collapses onto the deleted range's start (never below it). For
-/// insert_at_cursors the caret is dropped: its insert would land inside text
+/// `insert_at_cursors` the caret is dropped: its insert would land inside text
 /// that the replacement is about to delete, shifting the delete range and
 /// corrupting the result.
 #[test]
