@@ -25,8 +25,9 @@ fn doc_target(default_kb: usize) -> usize {
     std::env::var("QUILL_STRESS_DOC_KB")
         .ok()
         .and_then(|v| v.parse::<usize>().ok())
-        .map(|kb| kb.saturating_mul(1024))
-        .unwrap_or(default_kb.saturating_mul(1024))
+        .map_or(default_kb.saturating_mul(1024), |kb| {
+            kb.saturating_mul(1024)
+        })
 }
 
 /// Number of seeds from `QUILL_STRESS_SEEDS` or a default.
@@ -327,6 +328,65 @@ fn stress_mixed_differential_multi_seed() {
     eprintln!("stress_multi_seed: seeds={count} ops_per_seed={ops}");
 }
 
+/// One churn edit against the editor and the oracle. Bounded windows keep the
+/// per-op oracle cost O(window), arm 3 interleaves a bounded undo/redo walk.
+fn churn_op(ed: &mut TextEditor, oracle: &mut Oracle, rng: &mut Rng) {
+    let len = oracle.len();
+    match rng.below(6) {
+        0 => {
+            let pos = rng.upto(len);
+            let text = random_text(rng);
+            ed.insert(pos, &text);
+            oracle.insert(pos, &text);
+        }
+        1 => {
+            if len > 0 {
+                let start = rng.upto(len.saturating_sub(1));
+                let end = (start + 1 + rng.below(96)).min(len);
+                ed.delete(start, end);
+                oracle.delete(start, end);
+            }
+        }
+        2 => {
+            let pos = rng.upto(len);
+            let text = random_text(rng);
+            ed.type_text(pos, &text);
+            oracle.insert(pos, &text);
+        }
+        3 => {
+            // Bounded undo/redo interleave: content neutral.
+            let steps = rng.below(6);
+            let mut taken = 0usize;
+            for _ in 0..steps {
+                if !ed.undo() {
+                    break;
+                }
+                taken += 1;
+            }
+            for _ in 0..taken {
+                assert!(ed.redo(), "redo ran dry after {taken} undos");
+            }
+        }
+        4 => {
+            let pos = rng.upto(len);
+            let text = random_line(rng);
+            let text: String = text.chars().take(96).collect();
+            ed.insert(pos, &text);
+            oracle.insert(pos, &text);
+        }
+        _ => {
+            if len > 0 {
+                let start = rng.upto(len.saturating_sub(1));
+                let end = (start + 1 + rng.below(64)).min(len);
+                let text = random_text(rng);
+                ed.replace(start, end, &text);
+                oracle.delete(start, end);
+                oracle.insert(start, &text);
+            }
+        }
+    }
+}
+
 /// Undo/redo churn: bursts of edits, exact undo count back to the pre-burst
 /// state, redo back to post-burst, bounded undo/redo interleaves mid-burst,
 /// redo invalidation after undo followed by a new edit.
@@ -348,60 +408,7 @@ fn stress_undo_redo_churn() {
         ed.commit();
         let h0 = ed.history_len();
         for _ in 0..burst.min(ops - done) {
-            let len = oracle.len();
-            match rng.below(6) {
-                0 => {
-                    let pos = rng.upto(len);
-                    let text = random_text(&mut rng);
-                    ed.insert(pos, &text);
-                    oracle.insert(pos, &text);
-                }
-                1 => {
-                    if len > 0 {
-                        let start = rng.upto(len.saturating_sub(1));
-                        let end = (start + 1 + rng.below(96)).min(len);
-                        ed.delete(start, end);
-                        oracle.delete(start, end);
-                    }
-                }
-                2 => {
-                    let pos = rng.upto(len);
-                    let text = random_text(&mut rng);
-                    ed.type_text(pos, &text);
-                    oracle.insert(pos, &text);
-                }
-                3 => {
-                    // Bounded undo/redo interleave: content neutral.
-                    let steps = rng.below(6);
-                    let mut taken = 0usize;
-                    for _ in 0..steps {
-                        if !ed.undo() {
-                            break;
-                        }
-                        taken += 1;
-                    }
-                    for _ in 0..taken {
-                        assert!(ed.redo(), "redo ran dry after {taken} undos");
-                    }
-                }
-                4 => {
-                    let pos = rng.upto(len);
-                    let text = random_line(&mut rng);
-                    let text: String = text.chars().take(96).collect();
-                    ed.insert(pos, &text);
-                    oracle.insert(pos, &text);
-                }
-                _ => {
-                    if len > 0 {
-                        let start = rng.upto(len.saturating_sub(1));
-                        let end = (start + 1 + rng.below(64)).min(len);
-                        let text = random_text(&mut rng);
-                        ed.replace(start, end, &text);
-                        oracle.delete(start, end);
-                        oracle.insert(start, &text);
-                    }
-                }
-            }
+            churn_op(&mut ed, &mut oracle, &mut rng);
             done += 1;
             assert_eq!(
                 ed.char_len(),
@@ -540,6 +547,24 @@ fn stress_boundary_and_multibyte_assault() {
     eprintln!("stress_boundary: iterations={ops} final_bytes={}", doc.len());
 }
 
+/// Naive non-overlapping reference finder over characters.
+fn naive_find_all(hay: &[char], needle: &[char]) -> Vec<usize> {
+    let mut out = Vec::new();
+    if needle.is_empty() {
+        return out;
+    }
+    let mut i = 0usize;
+    while i + needle.len() <= hay.len() {
+        if hay[i..i + needle.len()] == *needle {
+            out.push(i);
+            i += needle.len();
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
 /// Search edge cases at scale: empty needle, needle longer than the document,
 /// overlapping matches, multibyte needles, and matches spanning piece
 /// boundaries after heavy edits.
@@ -550,24 +575,6 @@ fn stress_search_edges() {
     let doc = build_document(0x5EA7_0001, target);
     let mut ed = TextEditor::new(&doc);
     let mut rng = Rng::new(0x5EA7_7001);
-
-    // Naive non-overlapping reference finder over characters.
-    fn naive_find_all(hay: &[char], needle: &[char]) -> Vec<usize> {
-        let mut out = Vec::new();
-        if needle.is_empty() {
-            return out;
-        }
-        let mut i = 0usize;
-        while i + needle.len() <= hay.len() {
-            if hay[i..i + needle.len()] == *needle {
-                out.push(i);
-                i += needle.len();
-            } else {
-                i += 1;
-            }
-        }
-        out
-    }
 
     assert!(quill::find_all(&doc, "").is_empty(), "empty needle matched");
     assert!(

@@ -44,6 +44,7 @@ pub struct TextEditor {
 
 impl TextEditor {
     /// Open a document from initial text.
+    #[must_use]
     pub fn new(text: &str) -> Self {
         TextEditor {
             buffer: PieceTable::new(text),
@@ -55,16 +56,19 @@ impl TextEditor {
     }
 
     /// An empty document.
+    #[must_use]
     pub fn empty() -> Self {
         TextEditor::new("")
     }
 
     /// Read only access to the underlying buffer.
+    #[must_use]
     pub fn buffer(&self) -> &PieceTable {
         &self.buffer
     }
 
     /// The current cursor set.
+    #[must_use]
     pub fn cursors(&self) -> &CursorSet {
         &self.cursors
     }
@@ -76,41 +80,53 @@ impl TextEditor {
     }
 
     /// Full document contents.
+    #[must_use]
     pub fn contents(&self) -> String {
         self.buffer.contents()
     }
 
     /// Number of characters.
+    #[must_use]
     pub fn char_len(&self) -> usize {
         self.buffer.char_len()
     }
 
     /// Whether the document holds no characters.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.buffer.is_empty()
     }
 
     /// Number of lines.
+    #[must_use]
     pub fn line_count(&self) -> usize {
         self.buffer.line_count()
     }
 
     /// Zero based line and column for a character offset.
+    ///
+    /// # Panics
+    /// Panics when `pos` exceeds the character length.
+    #[must_use]
     pub fn line_col(&self, pos: usize) -> (usize, usize) {
         self.buffer.offset_to_line_col(pos)
     }
 
-    /// The text of a zero based line, without its newline.
+    /// The text of a zero based line, without its newline. A line past the
+    /// end is empty.
+    #[must_use]
     pub fn line(&self, line: usize) -> String {
         self.buffer.line_slice(line)
     }
 
-    /// Character offsets of every match of `needle`.
+    /// Character offsets of every non overlapping match of `needle`.
+    #[must_use]
     pub fn find_all(&self, needle: &str) -> Vec<usize> {
         search::find_all(&self.buffer.contents(), needle)
     }
 
     /// A structural view of the pieces backing the buffer.
+    #[must_use]
     pub fn pieces(&self) -> Vec<PieceInfo> {
         self.buffer.piece_view()
     }
@@ -168,6 +184,9 @@ impl TextEditor {
     }
 
     /// Insert `text` at character offset `pos`, starting a new undo group.
+    ///
+    /// # Panics
+    /// Panics when `pos` exceeds the character length.
     pub fn insert(&mut self, pos: usize, text: &str) {
         if text.is_empty() {
             return;
@@ -203,6 +222,9 @@ impl TextEditor {
     }
 
     /// Delete the characters in `start..end`, starting a new undo group.
+    ///
+    /// # Panics
+    /// Panics when `start > end` or `end` exceeds the character length.
     pub fn delete(&mut self, start: usize, end: usize) {
         if start == end {
             return;
@@ -221,6 +243,9 @@ impl TextEditor {
     }
 
     /// Replace `start..end` with `text` as a single undo group.
+    ///
+    /// # Panics
+    /// Panics when `start > end` or `end` exceeds the character length.
     pub fn replace(&mut self, start: usize, end: usize, text: &str) {
         self.commit();
         if start != end {
@@ -301,16 +326,19 @@ impl TextEditor {
 
     /// Number of committed undo transactions on the stack. Useful for tests
     /// that need to know whether an operation actually recorded a change.
+    #[must_use]
     pub fn history_len(&self) -> usize {
         self.undo.len()
     }
 
     /// Whether an undo is available.
+    #[must_use]
     pub fn can_undo(&self) -> bool {
         !self.undo.is_empty() || !self.pending.ops.is_empty()
     }
 
     /// Whether a redo is available.
+    #[must_use]
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }
@@ -382,7 +410,7 @@ impl TextEditor {
             .cursors
             .cursors()
             .iter()
-            .filter_map(|c| c.selected_range())
+            .filter_map(Cursor::selected_range)
             .collect();
         if deletions.is_empty() {
             return 0;
@@ -413,15 +441,13 @@ impl TextEditor {
             })
             .collect();
         records.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.is_none().cmp(&a.1.is_none())));
-        let mut shift = 0isize;
+        let mut deleted_below = 0usize;
         let mut new_cursors = Vec::with_capacity(records.len());
         for &(point, sel) in &records {
-            match sel {
-                Some((s, e)) => {
-                    new_cursors.push(Cursor::at((point as isize + shift) as usize));
-                    shift -= (e - s) as isize;
-                }
-                None => new_cursors.push(Cursor::at((point as isize + shift) as usize)),
+            // A bare caret inside a deleted range collapses to its start.
+            new_cursors.push(Cursor::at(point.saturating_sub(deleted_below)));
+            if let Some((_, e)) = sel {
+                deleted_below += e - point;
             }
         }
         self.set_cursors(CursorSet::from_cursors(new_cursors));

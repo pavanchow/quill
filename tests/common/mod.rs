@@ -5,7 +5,7 @@
 // helper, so per-binary dead code warnings here are expected and silenced.
 #![allow(dead_code)]
 
-/// SplitMix64: a small, well distributed PRNG so the fuzz gates need no crates.
+/// `SplitMix64`: a small, well distributed PRNG so the fuzz gates need no crates.
 pub struct Rng(u64);
 
 impl Rng {
@@ -26,7 +26,8 @@ impl Rng {
         if n == 0 {
             0
         } else {
-            (self.next_u64() % n as u64) as usize
+            // The modulo keeps the result below `n`, so it always fits usize.
+            usize::try_from(self.next_u64() % n as u64).unwrap_or(0)
         }
     }
 
@@ -60,7 +61,7 @@ pub fn random_text(rng: &mut Rng) -> String {
 
 /// Byte index of the `k`th character boundary in `s`.
 pub fn char_to_byte(s: &str, k: usize) -> usize {
-    s.char_indices().nth(k).map(|(b, _)| b).unwrap_or(s.len())
+    s.char_indices().nth(k).map_or(s.len(), |(b, _)| b)
 }
 
 pub fn ref_char_len(s: &str) -> usize {

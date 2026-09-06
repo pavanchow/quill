@@ -17,6 +17,7 @@ pub struct Cursor {
 
 impl Cursor {
     /// A cursor at `pos` with no selection.
+    #[must_use]
     pub fn at(pos: usize) -> Self {
         Cursor {
             caret: pos,
@@ -25,6 +26,7 @@ impl Cursor {
     }
 
     /// A cursor selecting `start..end` with the caret at `end`.
+    #[must_use]
     pub fn selection(start: usize, end: usize) -> Self {
         Cursor {
             caret: end,
@@ -33,11 +35,13 @@ impl Cursor {
     }
 
     /// Whether a selection is active and non empty.
+    #[must_use]
     pub fn has_selection(&self) -> bool {
         matches!(self.anchor, Some(a) if a != self.caret)
     }
 
     /// The selected range as `(low, high)`, or `None` when empty.
+    #[must_use]
     pub fn selected_range(&self) -> Option<(usize, usize)> {
         match self.anchor {
             Some(a) if a != self.caret => Some((a.min(self.caret), a.max(self.caret))),
@@ -73,6 +77,7 @@ pub struct CursorSet {
 
 impl CursorSet {
     /// A set with a single cursor at the origin.
+    #[must_use]
     pub fn new() -> Self {
         CursorSet {
             cursors: vec![Cursor::at(0)],
@@ -80,6 +85,7 @@ impl CursorSet {
     }
 
     /// A set built from explicit cursors, normalized.
+    #[must_use]
     pub fn from_cursors(cursors: Vec<Cursor>) -> Self {
         let mut set = CursorSet { cursors };
         set.normalize();
@@ -93,16 +99,19 @@ impl CursorSet {
     }
 
     /// The cursors in caret order.
+    #[must_use]
     pub fn cursors(&self) -> &[Cursor] {
         &self.cursors
     }
 
     /// Number of cursors.
+    #[must_use]
     pub fn len(&self) -> usize {
         self.cursors.len()
     }
 
     /// Whether there are no cursors.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.cursors.is_empty()
     }

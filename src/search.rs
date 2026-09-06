@@ -7,6 +7,7 @@
 
 /// Character offsets of every non overlapping occurrence of `needle` in
 /// `haystack`. An empty needle yields no matches.
+#[must_use]
 pub fn find_all(haystack: &str, needle: &str) -> Vec<usize> {
     let mut out = Vec::new();
     if needle.is_empty() {
@@ -24,6 +25,7 @@ pub fn find_all(haystack: &str, needle: &str) -> Vec<usize> {
 }
 
 /// Number of matches of `needle` in `haystack`.
+#[must_use]
 pub fn count(haystack: &str, needle: &str) -> usize {
     find_all(haystack, needle).len()
 }

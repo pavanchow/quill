@@ -81,6 +81,7 @@ pub struct PieceTable {
 
 impl PieceTable {
     /// Build a buffer from initial text.
+    #[must_use]
     pub fn new(text: &str) -> Self {
         let mut pt = PieceTable {
             original: text.to_string(),
@@ -106,27 +107,32 @@ impl PieceTable {
     }
 
     /// An empty buffer.
+    #[must_use]
     pub fn empty() -> Self {
         PieceTable::new("")
     }
 
     /// Total number of characters in the buffer.
+    #[must_use]
     pub fn char_len(&self) -> usize {
         self.char_len
     }
 
     /// Total number of bytes in the buffer.
+    #[must_use]
     pub fn byte_len(&self) -> usize {
         self.pieces.iter().map(|p| p.byte_len).sum()
     }
 
     /// Whether the buffer holds no characters.
+    #[must_use]
     pub fn is_empty(&self) -> bool {
         self.char_len == 0
     }
 
     /// Number of lines. An empty buffer has one line. A trailing newline creates
     /// a final empty line.
+    #[must_use]
     pub fn line_count(&self) -> usize {
         self.newline_total + 1
     }
@@ -189,6 +195,9 @@ impl PieceTable {
     }
 
     /// Insert `text` at character offset `pos`.
+    ///
+    /// # Panics
+    /// Panics when `pos` exceeds the character length.
     pub fn insert(&mut self, pos: usize, text: &str) {
         assert!(pos <= self.char_len, "insert offset out of range");
         if text.is_empty() {
@@ -232,6 +241,9 @@ impl PieceTable {
     }
 
     /// Delete the characters in `start..end`.
+    ///
+    /// # Panics
+    /// Panics when `start > end` or `end` exceeds the character length.
     pub fn delete(&mut self, start: usize, end: usize) {
         assert!(start <= end, "delete range reversed");
         assert!(end <= self.char_len, "delete range out of bounds");
@@ -285,12 +297,19 @@ impl PieceTable {
     }
 
     /// Replace the characters in `start..end` with `text`.
+    ///
+    /// # Panics
+    /// Panics when `start > end` or `end` exceeds the character length.
     pub fn replace(&mut self, start: usize, end: usize, text: &str) {
         self.delete(start, end);
         self.insert(start, text);
     }
 
     /// Collect the characters in `start..end` into a `String`.
+    ///
+    /// # Panics
+    /// Panics when `start > end` or `end` exceeds the character length.
+    #[must_use]
     pub fn slice(&self, start: usize, end: usize) -> String {
         assert!(start <= end, "slice range reversed");
         assert!(end <= self.char_len, "slice range out of bounds");
@@ -321,6 +340,7 @@ impl PieceTable {
     }
 
     /// The full buffer contents as a `String`.
+    #[must_use]
     pub fn contents(&self) -> String {
         let mut out = String::with_capacity(self.byte_len());
         for p in &self.pieces {
@@ -330,6 +350,10 @@ impl PieceTable {
     }
 
     /// Map a character offset to a zero based `(line, column)` pair.
+    ///
+    /// # Panics
+    /// Panics when `pos` exceeds the character length.
+    #[must_use]
     pub fn offset_to_line_col(&self, pos: usize) -> (usize, usize) {
         assert!(pos <= self.char_len, "offset out of range");
         let mut line = 0;
@@ -366,6 +390,7 @@ impl PieceTable {
 
     /// Character offset at which `line` begins (zero based line index). A line
     /// past the end clamps to the buffer length.
+    #[must_use]
     pub fn line_start_offset(&self, line: usize) -> usize {
         if line == 0 {
             return 0;
@@ -396,6 +421,7 @@ impl PieceTable {
 
     /// Map a zero based `(line, column)` pair to a character offset, clamped to
     /// the end of that line and to the buffer.
+    #[must_use]
     pub fn line_col_to_offset(&self, line: usize, col: usize) -> usize {
         let start = self.line_start_offset(line);
         let end = if line + 1 < self.line_count() {
@@ -407,7 +433,9 @@ impl PieceTable {
         (start + col).min(end)
     }
 
-    /// The text of `line` (zero based), without its trailing newline.
+    /// The text of `line` (zero based), without its trailing newline. A line
+    /// past the end is empty.
+    #[must_use]
     pub fn line_slice(&self, line: usize) -> String {
         let start = self.line_start_offset(line);
         let end = if line + 1 < self.line_count() {
@@ -419,11 +447,13 @@ impl PieceTable {
     }
 
     /// Number of pieces currently in the table (a rough structural size).
+    #[must_use]
     pub fn piece_count(&self) -> usize {
         self.pieces.len()
     }
 
     /// A read only view of the pieces for visualization and tests.
+    #[must_use]
     pub fn piece_view(&self) -> Vec<PieceInfo> {
         self.pieces
             .iter()

@@ -336,7 +336,7 @@ fn replace_next_interactive_loop_equals_replace_all() {
     assert_eq!(ed.replace_next("X", "-", 2), Some((3, 4)), "from offset");
 
     for _ in 0..steps {
-        let needle: String = (0..(1 + rng.below(3)))
+        let needle: String = (0..=rng.below(3))
             .map(|_| random_text(&mut rng))
             .collect();
         if needle.is_empty() {
@@ -380,17 +380,8 @@ fn replace_next_interactive_loop_equals_replace_all() {
 
 #[test]
 fn piece_count_bounded_by_edits_not_document_size() {
-    // The same edit script on a tiny and a huge document must produce the
-    // same piece count: structural size tracks edits, never text volume.
-    // Same character count, wildly different byte size: identical edit
-    // scripts in char space must give identical piece counts.
-    let small_doc = "abcdefghij".repeat(100 * 1024); // 1M ASCII chars, 1MB
-    let huge_doc: String = small_doc.chars().map(|_| '\u{1F980}').collect(); // 4MB
-    assert_eq!(ref_char_len(&small_doc), ref_char_len(&huge_doc));
-    assert!(huge_doc.len() > 3 * small_doc.len());
-    let edits = 400usize;
-
-    fn run(doc: &str, edits: usize) -> (usize, String) {
+    // One shared edit script, defined before any statements run.
+    fn run(doc: &str, edits: usize) -> usize {
         let mut ed = TextEditor::new(doc);
         let mut rng = Rng::new(0x91CE_BEEF);
         for _ in 0..edits {
@@ -416,11 +407,20 @@ fn piece_count_bounded_by_edits_not_document_size() {
                 }
             }
         }
-        (ed.buffer().piece_count(), ed.contents())
+        ed.buffer().piece_count()
     }
 
-    let (small_pieces, _) = run(&small_doc, edits);
-    let (huge_pieces, _) = run(&huge_doc, edits);
+    // Same character count, wildly different byte size: identical edit
+    // scripts in char space must give identical piece counts. Structural
+    // size tracks edits, never text volume.
+    let small_doc = "abcdefghij".repeat(100 * 1024); // 1M ASCII chars, 1MB
+    let huge_doc: String = small_doc.chars().map(|_| '\u{1F980}').collect(); // 4MB
+    assert_eq!(ref_char_len(&small_doc), ref_char_len(&huge_doc));
+    assert!(huge_doc.len() > 3 * small_doc.len());
+    let edits = 400usize;
+
+    let small_pieces = run(&small_doc, edits);
+    let huge_pieces = run(&huge_doc, edits);
     assert_eq!(
         small_pieces, huge_pieces,
         "piece count depends on document size"
@@ -438,7 +438,9 @@ fn piece_count_bounded_by_edits_not_document_size() {
 fn build_seed() -> String {
     let mut s = String::from("alpha beta gamma delta é世🦀\n");
     for i in 0..12 {
-        s.push_str(&format!("line {i} of the seed document é世🦀\n"));
+        s.push_str("line ");
+        s.push_str(&i.to_string());
+        s.push_str(" of the seed document é世🦀\n");
     }
     s
 }
