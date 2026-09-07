@@ -3,8 +3,25 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Quill Playground</title>
+<title>Quill: a dependency-free piece table text buffer in Rust</title>
+<meta name="description" content="Quill by Pavan Nallamothu: a dependency-free editable text buffer written from scratch in Rust, pure standard library. A piece table backed document with correct line and column indexing, a cursor and selection model, coalescing undo and redo, and substring search. Type in the browser and watch the piece table split, grow, and coalesce.">
+<meta name="author" content="Pavan Nallamothu (pavanchow)">
+<link rel="canonical" href="https://pavanchow.github.io/quill/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="author" href="https://github.com/pavanchow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Quill: a dependency-free piece table text buffer in Rust">
+<meta property="og:description" content="A piece table text buffer in pure Rust: cheap edits on large documents, correct line and column indexing, coalescing undo and redo, substring search. Try it live. By Pavan Nallamothu.">
+<meta property="og:url" content="https://pavanchow.github.io/quill/">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="Quill: a dependency-free piece table text buffer in Rust">
+<meta name="twitter:description" content="Edit big text without rewriting it. A piece table buffer in pure Rust, verified against a naive reference on every edit.">
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Quill","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","description":"Quill is a dependency-free editable text buffer written from scratch in Rust with the pure standard library. It is a piece table backed document with correct line and column indexing, a cursor and selection model, a coalescing undo and redo history, and substring search. The buffer is verified against a naive String reference on every edit.","url":"https://pavanchow.github.io/quill/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/quill","license":"https://opensource.org/licenses/MIT"}
+</script>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
+</script>
 <style>
 :root {
   --bg: #f5f5f7;
@@ -12,29 +29,30 @@
   --panel-2: #fbfbfd;
   --text: #1d1d1f;
   --muted: #6e6e73;
-  --accent: #0071e3;
+  --accent: #0a84ff;
+  --accent-soft: #e6f1ff;
   --accent-text: #ffffff;
   --border: #d2d2d7;
   --sel: #a8d1ff;
   --match: #ffd426;
   --match-text: #1d1d1f;
-  --caret: #0071e3;
+  --caret: #0a84ff;
   --add: #0a84ff;
   --orig: #34c759;
   --shadow: 0 1px 3px rgba(0,0,0,0.08), 0 8px 24px rgba(0,0,0,0.06);
   --radius: 14px;
+  --mono: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
 }
 
-* { box-sizing: border-box; }
-
-html { -webkit-text-size-adjust: 100%; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
 
 body {
-  margin: 0;
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-size: 17px;
+  line-height: 1.6;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -49,6 +67,7 @@ body {
     --text: #f5f5f7;
     --muted: #98989d;
     --accent: #0a84ff;
+    --accent-soft: #10263f;
     --accent-text: #ffffff;
     --border: #38383a;
     --sel: #0a4a8f;
@@ -59,244 +78,172 @@ body {
     --orig: #30d158;
     --shadow: 0 1px 3px rgba(0,0,0,0.5), 0 8px 24px rgba(0,0,0,0.4);
   }
-  body {
-    background: var(--bg);
-    color: var(--text);
-  }
+  body { background: var(--bg); color: var(--text); }
 }
 
-.wrap {
-  max-width: 1040px;
-  margin: 0 auto;
-  padding: 48px 24px 80px;
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-family: var(--mono); font-size: .9em; background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px; padding: 1px 6px; }
+
+nav { position: sticky; top: 0; z-index: 20; background: rgba(255,255,255,.82); backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid var(--border); }
+@media (prefers-color-scheme: dark) { nav { background: rgba(0,0,0,.72); } }
+nav .row { display: flex; justify-content: space-between; align-items: center; height: 56px; max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+nav .brand { display: flex; align-items: center; gap: 9px; font-size: 18px; font-weight: 650; letter-spacing: -.01em; }
+nav .brand .gem { width: 15px; height: 15px; border-radius: 5px; background: linear-gradient(135deg, #4db2ff, #0a84ff); }
+nav .links { display: flex; gap: 26px; align-items: center; }
+nav .links a { color: var(--text); font-size: 14.5px; }
+@media (max-width: 640px) { nav .links a:not(.gh) { display: none; } }
+
+.wrap { max-width: 1040px; margin: 0 auto; padding: 0 24px; }
+
+.hero { padding: 78px 24px 26px; text-align: center; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); }
+h1 { font-size: clamp(38px, 7vw, 64px); line-height: 1.05; letter-spacing: -.035em; font-weight: 680; margin: 18px 0 0; text-wrap: balance; }
+.hero p.sub { max-width: 700px; margin: 22px auto 0; font-size: clamp(17px, 2.1vw, 21px); color: var(--muted); }
+.cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 32px; }
+.btn { display: inline-block; padding: 13px 26px; border-radius: 999px; font-size: 15px; font-weight: 600; border: 1px solid var(--text); color: var(--text); }
+.btn:hover { opacity: .75; text-decoration: none; }
+.btn.primary { background: var(--text); color: var(--panel); border-color: var(--text); }
+@media (prefers-color-scheme: dark) { .btn.primary { color: #000; } }
+
+.howto { max-width: 720px; margin: 8px auto 0; border: 1px solid var(--border); border-radius: 14px; padding: 2px 18px; background: var(--panel-2); }
+.howto > summary { cursor: pointer; font-weight: 600; padding: 14px 0; list-style: none; }
+.howto > summary::-webkit-details-marker { display: none; }
+.howto > summary::before { content: "\25B8"; display: inline-block; margin-right: 8px; color: var(--accent); transition: transform .15s; }
+.howto[open] > summary::before { transform: rotate(90deg); }
+.howto h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+.howto ol { margin: 0 0 8px; padding-left: 22px; }
+.howto li { margin: 6px 0; color: var(--muted); }
+.howto li b { color: var(--text); }
+.grid2 { display: grid; grid-template-columns: 1fr; gap: 18px; margin-bottom: 8px; }
+@media (min-width: 720px) { .grid2 { grid-template-columns: 1fr 1fr; } }
+.kbd { font-family: var(--mono); font-size: 12px; background: var(--panel); border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 6px; padding: 2px 7px; }
+.muted { color: var(--muted); }
+
+.stage { max-width: 1040px; margin: 34px auto 0; padding: 0 24px; scroll-margin-top: 70px; }
+section.card {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 20px;
+  box-shadow: 0 24px 60px -34px rgba(10,132,255,.42); padding: 24px;
 }
+section.card h2 { font-size: 22px; letter-spacing: -0.01em; margin: 0 0 14px; font-weight: 600; text-align: left; }
+h3.lbl { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 0 0 10px; font-weight: 600; }
 
-header h1 {
-  font-size: 44px;
-  line-height: 1.1;
-  letter-spacing: -0.02em;
-  margin: 0 0 8px;
-  font-weight: 700;
-}
-
-header .tag {
-  font-size: 20px;
-  color: var(--muted);
-  margin: 0 0 8px;
-}
-
-header a {
-  color: var(--accent);
-  text-decoration: none;
-  font-size: 15px;
-}
-
-header a:hover { text-decoration: underline; }
-
-section {
-  background: var(--panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 22px;
-  margin-top: 28px;
-}
-
-h2 {
-  font-size: 22px;
-  letter-spacing: -0.01em;
-  margin: 0 0 14px;
-  font-weight: 600;
-}
-
-h3 {
-  font-size: 15px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--muted);
-  margin: 0 0 10px;
-  font-weight: 600;
-}
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 14px;
-}
-
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 14px; }
 button {
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 980px;
-  padding: 8px 16px;
-  cursor: pointer;
+  font: inherit; font-size: 14px; font-weight: 500; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 980px; padding: 8px 16px; cursor: pointer;
   transition: background 0.15s ease, transform 0.05s ease;
 }
-
 button:hover { background: var(--bg); }
 button:active { transform: scale(0.97); }
 button:disabled { opacity: 0.4; cursor: default; }
-
-button.primary {
-  background: var(--accent);
-  color: var(--accent-text);
-  border-color: transparent;
-}
+button.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
 button.primary:hover { filter: brightness(1.05); }
 
 input[type="text"], input[type="search"] {
-  font: inherit;
-  font-size: 14px;
-  color: var(--text);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 980px;
-  padding: 8px 16px;
-  outline: none;
-  min-width: 220px;
+  font: inherit; font-size: 14px; color: var(--text); background: var(--panel-2);
+  border: 1px solid var(--border); border-radius: 980px; padding: 8px 16px; outline: none; min-width: 220px;
 }
-input[type="text"]:focus, input[type="search"]:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
-}
+input[type="text"]:focus, input[type="search"]:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
 
 .editor {
-  font-family: ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Monaco, "Cascadia Code", Consolas, monospace;
-  font-size: 15px;
-  line-height: 1.7;
-  white-space: pre-wrap;
-  word-break: break-word;
-  min-height: 220px;
-  padding: 16px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  outline: none;
-  cursor: text;
-  overflow-wrap: anywhere;
+  font-family: var(--mono); font-size: 15px; line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+  min-height: 220px; padding: 16px; background: var(--panel-2); border: 1px solid var(--border);
+  border-radius: 10px; outline: none; cursor: text; overflow-wrap: anywhere;
 }
 .editor:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
-
 .ch { position: relative; }
 .ch.sel { background: var(--sel); border-radius: 2px; }
 .ch.match { background: var(--match); color: var(--match-text); border-radius: 2px; }
 .ch.match.sel { box-shadow: inset 0 0 0 2px var(--accent); }
-.ch.nl.sel::before { content: "↵"; color: var(--muted); }
-
+.ch.nl.sel::before { content: "\21B5"; color: var(--muted); }
 .caret {
-  display: inline-block;
-  width: 0;
-  border-left: 2px solid var(--caret);
-  height: 1.15em;
-  margin: 0 -1px;
-  vertical-align: text-bottom;
-  animation: blink 1.05s steps(1) infinite;
+  display: inline-block; width: 0; border-left: 2px solid var(--caret); height: 1.15em;
+  margin: 0 -1px; vertical-align: text-bottom; animation: blink 1.05s steps(1) infinite;
 }
 .editor:focus .caret { animation: blink 1.05s steps(1) infinite; }
 @keyframes blink { 50% { opacity: 0; } }
 
-.stats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 10px;
-  margin-top: 14px;
-}
-.pill {
-  font-size: 13px;
-  color: var(--muted);
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 980px;
-  padding: 5px 12px;
-}
+.stats { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 14px; }
+.pill { font-size: 13px; color: var(--muted); background: var(--panel-2); border: 1px solid var(--border); border-radius: 980px; padding: 5px 12px; }
 .pill b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
-.layout {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-}
-@media (min-width: 860px) {
-  .layout { grid-template-columns: 1.3fr 1fr; }
-}
-
-.pieces {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 340px;
-  overflow: auto;
-}
-.piece {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--panel-2);
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 12.5px;
-}
-.badge {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  padding: 2px 8px;
-  border-radius: 980px;
-  color: #fff;
-  flex: none;
-}
+.layout { display: grid; grid-template-columns: 1fr; gap: 20px; }
+@media (min-width: 860px) { .layout { grid-template-columns: 1.3fr 1fr; } }
+.pieces { display: flex; flex-direction: column; gap: 8px; max-height: 340px; overflow: auto; }
+.piece { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel-2); font-family: var(--mono); font-size: 12.5px; }
+.badge { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; padding: 2px 8px; border-radius: 980px; color: #fff; flex: none; }
 .badge.original { background: var(--orig); }
 .badge.add { background: var(--add); }
 .piece .range { color: var(--muted); flex: none; font-variant-numeric: tabular-nums; }
 .piece .txt { white-space: pre-wrap; word-break: break-word; color: var(--text); }
 .legend { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
 
-.help ol { margin: 0 0 6px; padding-left: 22px; }
-.help li { margin: 6px 0; }
-.help code, .prose code {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 0.88em;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 1px 6px;
-}
-.help .kbd {
-  font-family: ui-monospace, "SF Mono", Menlo, monospace;
-  font-size: 12px;
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-bottom-width: 2px;
-  border-radius: 6px;
-  padding: 2px 7px;
-}
-.grid2 { display: grid; grid-template-columns: 1fr; gap: 18px; }
-@media (min-width: 720px) { .grid2 { grid-template-columns: 1fr 1fr; } }
-.prose p { margin: 8px 0; }
-.muted { color: var(--muted); }
-footer { margin-top: 40px; text-align: center; color: var(--muted); font-size: 13px; }
-footer a { color: var(--accent); text-decoration: none; }
+section.story { padding: 84px 0; border-top: 1px solid var(--border); }
+section.story h2 { font-size: clamp(26px, 4.2vw, 38px); line-height: 1.12; letter-spacing: -.025em; font-weight: 660; text-align: center; max-width: 760px; margin: 0 auto; }
+.lead { max-width: 680px; margin: 18px auto 0; text-align: center; color: var(--muted); }
+.lead code { background: var(--panel-2); }
+ul.gates { max-width: 680px; margin: 24px auto 0; padding: 0; list-style: none; }
+ul.gates li { border-top: 1px solid var(--border); padding: 14px 0; color: var(--muted); }
+ul.gates li b { color: var(--text); font-weight: 600; }
+pre.block { background: #15161c; color: #ececf4; border-radius: 14px; padding: 20px 22px; font-family: var(--mono); font-size: 13px; line-height: 1.6; overflow-x: auto; max-width: 760px; margin: 30px auto 0; white-space: pre; }
+pre.block .cm { color: #8a8d9a; } pre.block .g { color: #7fd6a0; }
+
+footer { padding: 60px 0; border-top: 1px solid var(--border); text-align: center; color: var(--muted); }
+footer .name { color: var(--text); font-weight: 600; }
+footer p + p { margin-top: 10px; }
+@media (max-width: 640px) { .hero { padding: 54px 24px 22px; } section.story { padding: 60px 0; } section.card { padding: 16px; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <img src="logo.svg" alt="Quill logo" width="72" height="72" style="display:block;margin:0 auto 14px">
-    <h1>Quill Playground</h1>
-    <p class="tag">A dependency-free text buffer, running in your browser.</p>
-    <a href="https://github.com/pavanchow/quill">github.com/pavanchow/quill</a>
-  </header>
+<noscript><div class="wrap" style="padding:40px 24px;color:#6a6d78">Quill is a dependency-free editable text buffer written from scratch in Rust with the pure standard library, by Pavan Nallamothu. It is a piece table backed document with correct line and column indexing, a cursor and selection model, coalescing undo and redo, and substring search. Source: <a href="https://github.com/pavanchow/quill">github.com/pavanchow/quill</a>.</div></noscript>
 
-  <section>
+<nav><div class="row">
+  <div class="brand"><span class="gem"></span>Quill</div>
+  <div class="links"><a href="#sim">Editor</a><a href="#proof">Proof</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/quill">GitHub</a></div>
+</div></nav>
+
+<div class="hero">
+  <img src="logo.svg" alt="Quill logo" width="72" height="72">
+  <p class="eyebrow">Rust · piece table text buffer</p>
+  <h1>Edit big text<br>without rewriting it.</h1>
+  <p class="sub">Quill is a dependency-free editable text buffer written from scratch in Rust, pure standard library. It is a piece table backed document with correct line and column indexing, a cursor and selection model, a coalescing undo and redo history, and substring search. Inserting near the front of a megabyte of text costs work proportional to the pieces it touches, not the size of the document. Type in the editor here and watch the piece table split, grow, and coalesce in real time.</p>
+  <div class="cta-row">
+    <a class="btn primary" href="#sim">Open the editor</a>
+    <a class="btn" href="https://github.com/pavanchow/quill">View on GitHub</a>
+  </div>
+</div>
+
+<details class="howto">
+  <summary>How to use this playground</summary>
+  <div class="grid2">
+    <div>
+      <h3>Controls</h3>
+      <ol>
+        <li><b>Type</b> in the editor. Click to place the caret, use <span class="kbd">Shift</span> with arrows to select.</li>
+        <li><b>Move</b> with <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> <span class="kbd">&uarr;</span> <span class="kbd">&darr;</span>, jump with <span class="kbd">Home</span> and <span class="kbd">End</span>.</li>
+        <li><b>Delete</b> with <span class="kbd">Backspace</span> or <span class="kbd">Delete</span>. Selecting first then typing replaces the selection.</li>
+        <li><b>Undo</b> with the Undo button or <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Z</span>. <b>Redo</b> with Redo or <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Shift</span>+<span class="kbd">Z</span>.</li>
+        <li><b>Search</b> in the box to highlight every match. The count updates live.</li>
+        <li><b>Clear</b> empties the buffer. <b>Reset sample</b> restores the starting text.</li>
+      </ol>
+    </div>
+    <div>
+      <h3>A short guided tour</h3>
+      <ol>
+        <li>Put the caret in the middle of a word and type. Watch a new <span class="badge add">add</span> piece appear and the original piece split in two.</li>
+        <li>Keep typing without moving. The trailing add piece just grows, because contiguous typing coalesces.</li>
+        <li>Press <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Z</span> once. A whole typed run is undone as one step, not one letter.</li>
+        <li>Type "the" into the search box. Every occurrence lights up and the match count shows how many.</li>
+        <li>Select a range and press a key to replace it, then undo to bring it back exactly.</li>
+      </ol>
+      <p class="muted">Line and column are shown 1-based here for readability. The Rust engine reports them 0-based.</p>
+    </div>
+  </div>
+</details>
+
+<div class="stage" id="sim">
+  <section class="card">
     <h2>Editor</h2>
     <div class="toolbar">
       <button id="undo">Undo</button>
@@ -320,7 +267,7 @@ footer a { color: var(--accent); text-decoration: none; }
       </div>
 
       <div>
-        <h3>Piece table structure</h3>
+        <h3 class="lbl">Piece table structure</h3>
         <div id="pieces" class="pieces"></div>
         <p class="legend">
           <span class="badge original">original</span> the text you started with, immutable.
@@ -331,62 +278,43 @@ footer a { color: var(--accent); text-decoration: none; }
       </div>
     </div>
   </section>
-
-  <section class="help">
-    <details>
-    <summary style="cursor:pointer;font-size:1.5em;font-weight:600;list-style-position:outside">How to use this playground</summary>
-    <div class="grid2">
-      <div>
-        <h3>Controls</h3>
-        <ol>
-          <li><b>Type</b> in the editor. Click to place the caret, drag is not needed, use <span class="kbd">Shift</span> with arrows to select.</li>
-          <li><b>Move</b> with <span class="kbd">&larr;</span> <span class="kbd">&rarr;</span> <span class="kbd">&uarr;</span> <span class="kbd">&darr;</span>, jump with <span class="kbd">Home</span> and <span class="kbd">End</span>.</li>
-          <li><b>Delete</b> with <span class="kbd">Backspace</span> or <span class="kbd">Delete</span>. Selecting first then typing replaces the selection.</li>
-          <li><b>Undo</b> with the Undo button or <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Z</span>. <b>Redo</b> with Redo or <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Shift</span>+<span class="kbd">Z</span>.</li>
-          <li><b>Search</b> in the box to highlight every match. The count updates live.</li>
-          <li><b>Clear</b> empties the buffer. <b>Reset sample</b> restores the starting text.</li>
-        </ol>
-      </div>
-      <div>
-        <h3>A short guided tour</h3>
-        <ol>
-          <li>Put the caret in the middle of a word and type. Watch a new <span class="badge add">add</span> piece appear and the original piece split in two.</li>
-          <li>Keep typing without moving. The trailing add piece just grows, because contiguous typing coalesces.</li>
-          <li>Press <span class="kbd">Ctrl/Cmd</span>+<span class="kbd">Z</span> once. A whole typed run is undone as one step, not one letter.</li>
-          <li>Type "the" into the search box. Every occurrence lights up and the match count shows how many.</li>
-          <li>Select a range and press a key to replace it, then undo to bring it back exactly.</li>
-        </ol>
-        <p class="muted">Line and column are shown 1-based here for readability. The Rust engine reports them 0-based.</p>
-      </div>
-    </div>
-    </details>
-  </section>
-
-  <section class="prose">
-    <h2>What is happening under the hood</h2>
-    <p>
-      The editor is backed by a <b>piece table</b>, the same data structure the Rust
-      crate uses. Two immutable character stores exist: <code>original</code> holds
-      the starting text and <code>add</code> is append-only. The visible document is
-      an ordered list of pieces, each pointing at a range inside one store.
-    </p>
-    <p>
-      An insert appends to <code>add</code> and splices in at most one new piece,
-      splitting a piece if the caret is inside it. A delete drops the pieces in the
-      range. Nothing large is ever rewritten, which is what makes edits on big
-      documents cheap. Undo and redo record the inverse of each change and replay it.
-    </p>
-    <p class="muted">
-      This page is one self-contained file with no frameworks and no external
-      resources apart from the link to the source repository.
-    </p>
-  </section>
-
-  <footer>
-    Quill, built from scratch in Rust. Source at
-    <a href="https://github.com/pavanchow/quill">github.com/pavanchow/quill</a>.
-  </footer>
 </div>
+
+<section class="story" id="proof"><div class="wrap">
+  <h2>Proven against a naive buffer</h2>
+  <p class="lead">The pieces you see on the right are the real data model. Two immutable character stores exist: <code>original</code> holds the starting text and <code>add</code> is append-only. The document is an ordered list of pieces, each pointing at a range inside one store, so an insert appends to <code>add</code> and splices in at most one new piece, and nothing large is ever rewritten. That is the same <code>PieceTable</code> the Rust crate uses, and it is verified against a naive <code>String</code> reference on every single edit.</p>
+  <ul class="gates">
+    <li><b>Differential against a naive String.</b> The same random stream of insert, delete, and replace operations runs on the piece table and on a plain <code>String</code>; after every operation the full contents must match, and so must every line and column query.</li>
+    <li><b>Undo and redo round-trip.</b> A random op sequence is fully undone back to the exact initial state, then fully redone, with a mixed walk checked against a reference list of every state. Undo past the beginning stops cleanly and a new edit kills redo.</li>
+    <li><b>Buffer invariants.</b> Total length and line count stay correct, and no edit panics at a boundary: start, end, empty buffer, or a multibyte UTF-8 boundary.</li>
+    <li><b>Multi-cursor and structured replace.</b> Multi-cursor inserts, selection replacement, and selection deletion match the same edits as single-cursor splices, and piece count tracks the edit count rather than the document size.</li>
+  </ul>
+  <pre class="block"><span class="cm"># bounded for CI, tunable by env var; every op is compared to the reference</span>
+QUILL_FUZZ_OPS=20000 cargo test --release
+<span class="g">running gates: differential, undo_redo, invariants, multi_cursor ... ok</span></pre>
+</div></section>
+
+<section class="story" id="use"><div class="wrap">
+  <h2>Use it</h2>
+  <pre class="block"><span class="cm"># build, run the correctness gates, try the binary</span>
+cargo build --release
+cargo test
+./target/release/quill demo
+./target/release/quill path/to/file.txt --region 0 10</pre>
+  <pre class="block"><span class="cm"># or drop the library into your own project</span>
+use quill::TextEditor;
+
+let mut ed = TextEditor::new("hello");
+ed.insert(5, " world");            <span class="cm">// "hello world"</span>
+ed.replace(0, 5, "HELLO");         <span class="cm">// "HELLO world"</span>
+ed.undo();                         <span class="cm">// back to "hello world"</span>
+let hits = ed.find_all("o");       <span class="cm">// char offsets of every "o"</span></pre>
+</div></section>
+
+<footer><div class="wrap">
+  <p>Quill is MIT licensed. Source, tests, and design notes are on <a href="https://github.com/pavanchow/quill">GitHub</a>.</p>
+  <p>By <span class="name">Pavan Nallamothu</span>.</p>
+</div></footer>
 
 <script>
 "use strict";
