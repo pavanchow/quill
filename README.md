@@ -1,3 +1,5 @@
+<img src="docs/logo.svg" alt="Quill logo" width="96">
+
 # Quill
 
 Quill is a dependency-free editable text buffer written from scratch in Rust. It
