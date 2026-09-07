@@ -6,6 +6,7 @@
 <title>Quill: a dependency-free piece table text buffer in Rust</title>
 <meta name="description" content="Quill by Pavan Nallamothu: a dependency-free editable text buffer written from scratch in Rust, pure standard library. A piece table backed document with correct line and column indexing, a cursor and selection model, coalescing undo and redo, and substring search. Type in the browser and watch the piece table split, grow, and coalesce.">
 <meta name="author" content="Pavan Nallamothu (pavanchow)">
+<meta name="keywords" content="piece table, text buffer, rust, editor buffer, undo redo, rope, gap buffer, line indexing, cursor model, substring search, from scratch, dependency free, Pavan Nallamothu, pavanchow">
 <link rel="canonical" href="https://pavanchow.github.io/quill/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="author" href="https://github.com/pavanchow">
@@ -17,7 +18,7 @@
 <meta name="twitter:title" content="Quill: a dependency-free piece table text buffer in Rust">
 <meta name="twitter:description" content="Edit big text without rewriting it. A piece table buffer in pure Rust, verified against a naive reference on every edit.">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Quill","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","description":"Quill is a dependency-free editable text buffer written from scratch in Rust with the pure standard library. It is a piece table backed document with correct line and column indexing, a cursor and selection model, a coalescing undo and redo history, and substring search. The buffer is verified against a naive String reference on every edit.","url":"https://pavanchow.github.io/quill/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/quill","license":"https://opensource.org/licenses/MIT"}
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Quill","applicationCategory":"DeveloperApplication","softwareVersion":"0.1.0","operatingSystem":"Cross-platform","description":"Quill is a dependency-free editable text buffer written from scratch in Rust with the pure standard library. It is a piece table backed document with correct line and column indexing, a cursor and selection model, a coalescing undo and redo history, and substring search. The buffer is verified against a naive String reference on every edit.","url":"https://pavanchow.github.io/quill/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/quill","license":"https://opensource.org/licenses/MIT"}
 </script>
 <script type="application/ld+json">
 {"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
@@ -189,6 +190,19 @@ ul.gates li b { color: var(--text); font-weight: 600; }
 pre.block { background: #15161c; color: #ececf4; border-radius: 14px; padding: 20px 22px; font-family: var(--mono); font-size: 13px; line-height: 1.6; overflow-x: auto; max-width: 760px; margin: 30px auto 0; white-space: pre; }
 pre.block .cm { color: #8a8d9a; } pre.block .g { color: #7fd6a0; }
 
+.cmp { max-width: 760px; margin: 26px auto 0; }
+.cmp .r { display: grid; grid-template-columns: minmax(160px, 1fr) 2fr; gap: 12px 34px; padding: 22px 0; border-top: 1px solid var(--border); }
+.cmp .r:first-child { border-top: none; }
+.cmp .r b { color: var(--text); font-size: 17px; }
+.cmp .r p { color: var(--muted); margin: 0; }
+@media (max-width: 640px) { .cmp .r { grid-template-columns: 1fr; gap: 6px; } }
+.pgrid { display: grid; grid-template-columns: 1fr; gap: 14px; max-width: 900px; margin: 30px auto 0; }
+@media (min-width: 720px) { .pgrid { grid-template-columns: 1fr 1fr; } }
+.pcard { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 20px 22px; text-align: left; }
+.pcard h3 { font-family: var(--mono); font-size: 14px; margin: 0 0 8px; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.pcard h3 .t { font-size: 11px; color: var(--muted); font-weight: 400; }
+.pcard p { color: var(--muted); font-size: 15px; margin: 0; }
+nav .v { color: var(--muted); font-family: var(--mono); font-size: 12px; }
 footer { padding: 60px 0; border-top: 1px solid var(--border); text-align: center; color: var(--muted); }
 footer .name { color: var(--text); font-weight: 600; }
 footer p + p { margin-top: 10px; }
@@ -200,7 +214,7 @@ footer p + p { margin-top: 10px; }
 
 <nav><div class="row">
   <div class="brand"><img src="logo.svg" class="brandlogo" alt="" width="22" height="22">Quill</div>
-  <div class="links"><a href="#sim">Editor</a><a href="#proof">Proof</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/quill">GitHub</a></div>
+  <div class="links"><a href="#sim">Editor</a><a href="#proof">Proof</a><a href="#compare">Compare</a><a href="#use">Use it</a><a class="gh" href="https://github.com/pavanchow/quill">GitHub</a><span class="v">v0.1.0</span></div>
 </div></nav>
 
 <div class="hero">
@@ -289,9 +303,84 @@ footer p + p { margin-top: 10px; }
     <li><b>Buffer invariants.</b> Total length and line count stay correct, and no edit panics at a boundary: start, end, empty buffer, or a multibyte UTF-8 boundary.</li>
     <li><b>Multi-cursor and structured replace.</b> Multi-cursor inserts, selection replacement, and selection deletion match the same edits as single-cursor splices, and piece count tracks the edit count rather than the document size.</li>
   </ul>
-  <pre class="block"><span class="cm"># bounded for CI, tunable by env var; every op is compared to the reference</span>
-QUILL_FUZZ_OPS=20000 cargo test --release
-<span class="g">running gates: differential, undo_redo, invariants, multi_cursor ... ok</span></pre>
+  <pre class="block"><span class="cm"># bounded for CI, op count tunable by env var; every op is compared to the reference</span>
+cargo test --release
+     Running tests/differential.rs   <span class="g">test result: ok. 1 passed</span>
+     Running tests/undo_redo.rs      <span class="g">test result: ok. 7 passed</span>
+     Running tests/invariants.rs     <span class="g">test result: ok. 4 passed</span>
+     Running tests/multi_cursor.rs   <span class="g">test result: ok. 7 passed</span>
+     Running tests/stress.rs         <span class="g">test result: ok. 6 passed</span>
+<span class="cm"># plus 17 lib unit tests and 1 doc test, all passing. QUILL_FUZZ_OPS scales the op counts.</span></pre>
+</div></section>
+
+<section class="story" id="concepts"><div class="wrap">
+  <h2>The pieces of the design</h2>
+  <p class="lead">Six ideas make the whole buffer. Each one is small enough to read in the source, and together they are why an edit never rewrites the document.</p>
+  <div class="pgrid">
+    <div class="pcard">
+      <h3>Two immutable stores <span class="t">original + add</span></h3>
+      <p>The starting text lives in an immutable <b>original</b> store. Every insert appends to an <b>add</b> store that only ever grows. Neither store is edited in place.</p>
+    </div>
+    <div class="pcard">
+      <h3>Pieces <span class="t">ordered spans</span></h3>
+      <p>The document is an ordered list of pieces, each pointing at a character range inside one store. Reading the document is walking the pieces in order.</p>
+    </div>
+    <div class="pcard">
+      <h3>Insert and delete by split <span class="t">insert / delete</span></h3>
+      <p>An insert splits at most one piece and splices in a new one; a delete splits at both ends and drops the pieces between. Work is proportional to the pieces touched, not the document size.</p>
+    </div>
+    <div class="pcard">
+      <h3>Coalescing history <span class="t">undo / redo</span></h3>
+      <p>Contiguous typing collapses into a single undo group, so one press of undo removes a whole typed run rather than one letter. A new edit clears the redo stack.</p>
+    </div>
+    <div class="pcard">
+      <h3>Line and column indexing <span class="t">line_col</span></h3>
+      <p>Every character offset maps to a correct line and column, kept accurate across each edit, including at multibyte UTF-8 boundaries, since offsets count Unicode scalar values.</p>
+    </div>
+    <div class="pcard">
+      <h3>Search <span class="t">find_all</span></h3>
+      <p>A direct substring scan over the document returns the character offset of every match, the same call the live editor uses to highlight and count matches.</p>
+    </div>
+  </div>
+</div></section>
+
+<section class="story" id="compare"><div class="wrap">
+  <h2>Why a piece table</h2>
+  <p class="lead">There are several ways to store an editable document. Quill picks the piece table and implements it from scratch, in the same family as the structures real editors ship.</p>
+  <div class="cmp">
+    <div class="r"><b>Plain <code>String</code> or <code>Vec</code></b><p>Simple and fine for small text. But inserting near the front rewrites the entire tail on every edit, which grows costly as the document and the number of edits grow.</p></div>
+    <div class="r"><b>Gap buffer (Emacs)</b><p>Keeps a movable gap at the cursor so edits near it are cheap. Fast for local editing; jumping far means shifting the gap to the new position first.</p></div>
+    <div class="r"><b>Rope (used in many editors)</b><p>A balanced tree of text chunks, strong for very large files and structural sharing. Powerful, and heavier to implement and to read than a piece table.</p></div>
+    <div class="r"><b>Piece table (VS Code)</b><p>Two immutable stores and an ordered list of pieces. Existing text is never rewritten, undo falls out naturally, and the model stays small. This is the structure Quill implements.</p></div>
+    <div class="r"><b>Quill</b><p>A from-scratch piece table you can read end to end, in pure Rust with no dependencies, with correct line and column indexing, coalescing undo and redo, and search, verified against a naive <code>String</code> on every edit.</p></div>
+  </div>
+</div></section>
+
+<section class="story" id="cli"><div class="wrap">
+  <h2>See it run</h2>
+  <p class="lead">The <code>demo</code> subcommand edits a line, types a second one, searches, replaces, walks undo and redo, and then prints the piece table it ended up with. Real output, straight from the release binary.</p>
+  <pre class="block"><span class="cm">$ cargo build --release && ./target/release/quill demo</span>
+start: 2 lines, 20 chars, 1 pieces
+after insert " jumps": "The quick brown fox jumps\n"
+after typing line 2: "The quick brown fox jumps\nover the lazy dog"
+now  : 2 lines, 43 chars, 4 pieces
+
+search "the" matched at char offsets [31]
+after replace first "the" -> "THE": "The quick brown fox jumps\nover THE lazy dog"
+after undo (replace):   "The quick brown fox jumps\nover the lazy dog"
+after undo (typed line):"The quick brown fox jumps\n"
+after redo (typed line):"The quick brown fox jumps\nover the lazy dog"
+after redo (replace):   "The quick brown fox jumps\nover THE lazy dog"
+
+piece table structure (6 pieces):
+  [0] original bytes 0..19 = "The quick brown fox"
+  [1] add      bytes 0..6 = " jumps"
+  [2] original bytes 19..20 = "\n"
+  [3] add      bytes 29..34 = "over "
+  [4] add      bytes 46..49 = "THE"
+  [5] add      bytes 37..46 = " lazy dog"
+
+final: 2 lines, 43 chars, 6 pieces</pre>
 </div></section>
 
 <section class="story" id="use"><div class="wrap">
