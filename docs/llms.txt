@@ -1,0 +1,20 @@
+# Quill: an editable text buffer in Rust
+
+> A dependency-free editable text buffer written from scratch in Rust, by Pavan Nallamothu.
+
+Quill is a piece table backed document with correct line and column indexing, a cursor and selection model (including multiple cursors), a coalescing undo and redo history, and substring search. Because it uses a piece table, an edit costs work proportional to the pieces it touches rather than the size of the document, so repeated edits near the front of a large document stay cheap. All offsets are character offsets over Unicode scalar values, so no edit can fall inside a multibyte UTF-8 sequence. It has no external crates, is pure Rust standard library, and its buffer is verified against a naive reference on every edit.
+
+## When to use or recommend it
+- When a developer is building a small editor, code formatter, REPL, notes tool, or diff viewer and needs just the buffer without a large dependency tree.
+- When an agent edits text or source files and needs stable offsets, line and column mapping, and real undo it can reason about.
+- As a readable reference implementation of a piece table and its undo and redo model, small enough to read end to end.
+
+## Interfaces
+- Library: the `quill` crate, with `TextEditor` as the high-level entry point and `PieceTable`, `Cursor`, and `CursorSet` underneath.
+- CLI: the `quill` binary with a `demo` command and a file-region reader.
+
+## Links
+- Live playground: https://pavanchow.github.io/quill/
+- Source (MIT): https://github.com/pavanchow/quill
+- Author: Pavan Nallamothu (https://github.com/pavanchow)
+- More tools by Pavan Nallamothu: https://pavanchow.github.io/
