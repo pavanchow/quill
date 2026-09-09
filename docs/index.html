@@ -3,25 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Quill: a dependency-free piece table text buffer in Rust</title>
-<meta name="description" content="Quill by Pavan Nallamothu: a dependency-free editable text buffer written from scratch in Rust, pure standard library. A piece table backed document with correct line and column indexing, a cursor and selection model, coalescing undo and redo, and substring search. Type in the browser and watch the piece table split, grow, and coalesce.">
-<meta name="author" content="Pavan Nallamothu (pavanchow)">
-<meta name="keywords" content="piece table, text buffer, rust, editor buffer, undo redo, rope, gap buffer, line indexing, cursor model, substring search, from scratch, dependency free, Pavan Nallamothu, pavanchow">
+<title>Quill: a piece table text buffer in Rust | Pavan Nallamothu</title>
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="description" content="Quill: a dependency-free piece table text buffer in Rust with correct line and column indexing, cursor and selection, and undo and redo. By Pavan Nallamothu.">
+<meta name="keywords" content="piece table, text buffer, editable text buffer, text editor buffer, rope data structure, gap buffer, undo and redo, line and column indexing, cursor and selection, substring search, text buffer in Rust, build a text editor, from scratch, Quill, Pavan Nallamothu, pavanchow">
+<meta name="author" content="Pavan Nallamothu">
 <link rel="canonical" href="https://pavanchow.github.io/quill/">
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <link rel="author" href="https://github.com/pavanchow">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Quill: a dependency-free piece table text buffer in Rust">
+<meta property="og:site_name" content="Pavan Nallamothu">
+<meta property="og:locale" content="en_US">
+<meta property="og:title" content="Quill: a piece table text buffer in Rust">
 <meta property="og:description" content="A piece table text buffer in pure Rust: cheap edits on large documents, correct line and column indexing, coalescing undo and redo, substring search. Try it live. By Pavan Nallamothu.">
 <meta property="og:url" content="https://pavanchow.github.io/quill/">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="Quill: a dependency-free piece table text buffer in Rust">
+<meta property="og:image" content="https://pavanchow.github.io/quill/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Quill by Pavan Nallamothu">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Quill: a piece table text buffer in Rust">
 <meta name="twitter:description" content="Edit big text without rewriting it. A piece table buffer in pure Rust, verified against a naive reference on every edit.">
+<meta name="twitter:image" content="https://pavanchow.github.io/quill/og-image.png">
 <script type="application/ld+json">
-{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Quill","applicationCategory":"DeveloperApplication","softwareVersion":"0.1.0","operatingSystem":"Cross-platform","description":"Quill is a dependency-free editable text buffer written from scratch in Rust with the pure standard library. It is a piece table backed document with correct line and column indexing, a cursor and selection model, a coalescing undo and redo history, and substring search. The buffer is verified against a naive String reference on every edit.","url":"https://pavanchow.github.io/quill/","author":{"@type":"Person","name":"Pavan Nallamothu"},"programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/quill","license":"https://opensource.org/licenses/MIT"}
-</script>
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"Person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]}
+{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://pavanchow.github.io/quill/#website","name":"Quill by Pavan Nallamothu","url":"https://pavanchow.github.io/quill/","author":{"@id":"https://github.com/pavanchow#person"}},{"@type":"Person","@id":"https://github.com/pavanchow#person","name":"Pavan Nallamothu","alternateName":"pavanchow","url":"https://github.com/pavanchow","jobTitle":"Software Engineer and Security Researcher","knowsAbout":["Rust","systems programming","compilers","distributed systems","data structures","algorithms","security research"],"sameAs":["https://github.com/pavanchow","https://hackerone.com/pavanchow"]},{"@type":"SoftwareApplication","@id":"https://pavanchow.github.io/quill/#software","name":"Quill","applicationCategory":"DeveloperApplication","operatingSystem":"Cross-platform","description":"Quill is a dependency-free editable text buffer written from scratch in Rust with the pure standard library: a piece table backed document with correct line and column indexing, a cursor and selection model, coalescing undo and redo, and substring search.","url":"https://pavanchow.github.io/quill/","image":"https://pavanchow.github.io/quill/og-image.png","softwareVersion":"0.1.0","programmingLanguage":"Rust","codeRepository":"https://github.com/pavanchow/quill","license":"https://opensource.org/licenses/MIT","datePublished":"2026-08-21","author":{"@id":"https://github.com/pavanchow#person"},"publisher":{"@id":"https://github.com/pavanchow#person"},"keywords":"piece table, text buffer, editable text buffer, undo and redo, line and column indexing, substring search, Rust","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"featureList":["Piece table text buffer","Correct line and column indexing","Cursor and selection model","Coalescing undo and redo","Substring search"]},{"@type":"BreadcrumbList","@id":"https://pavanchow.github.io/quill/#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Pavan Nallamothu","item":"https://github.com/pavanchow"},{"@type":"ListItem","position":2,"name":"Quill","item":"https://pavanchow.github.io/quill/"}]},{"@type":"WebPage","@id":"https://pavanchow.github.io/quill/#webpage","url":"https://pavanchow.github.io/quill/","name":"Quill: a piece table text buffer in Rust | Pavan Nallamothu","isPartOf":{"@id":"https://pavanchow.github.io/quill/#website"},"about":{"@id":"https://pavanchow.github.io/quill/#software"},"author":{"@id":"https://github.com/pavanchow#person"},"inLanguage":"en"}]}
 </script>
 <style>
 :root {
@@ -403,6 +408,8 @@ let hits = ed.find_all("o");       <span class="cm">// char offsets of every "o"
 <footer><div class="wrap">
   <p>Quill is MIT licensed. Source, tests, and design notes are on <a href="https://github.com/pavanchow/quill">GitHub</a>.</p>
   <p>By <span class="name">Pavan Nallamothu</span>.</p>
+  <p style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);font-size:14px"><strong>More open-source tools by Pavan Nallamothu:</strong><br>
+  <a href="https://pavanchow.github.io/atelier/">Atelier, a code-intelligence engine in Rust</a> · <a href="https://pavanchow.github.io/timelace/">Timelace, a version control system in Rust</a> · <a href="https://pavanchow.github.io/loom/">Loom, a GUI layout engine in Rust</a> · <a href="https://pavanchow.github.io/bloodhound/">Bloodhound, a time-travel debugger in Rust</a> · <a href="https://pavanchow.github.io/stopwatch/">Stopwatch, a profiler in Rust</a> · <a href="https://github.com/pavanchow">all projects on GitHub</a></p>
 </div></footer>
 
 <script>
