@@ -11,6 +11,8 @@ that needs stable character offsets and real undo without a dependency graph.
 
 **[Live demo](https://pavanchow.github.io/quill/)** · MIT licensed · pure Rust
 
+Built from scratch by [Pavan Nallamothu](https://pavanchow.github.io/) ([LinkedIn](https://www.linkedin.com/in/pavanchow/), [GitHub](https://github.com/pavanchow)).
+
 ## What it is
 
 Most editor buffers are buried inside a large application or pull in a tree of
